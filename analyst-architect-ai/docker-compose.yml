@@ -1,0 +1,37 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/analyst_architect_ai.db}
+      - APP_SECRET_KEY=${APP_SECRET_KEY:-dev_secret_change_in_prod}
+      - MAX_DOCUMENT_LENGTH=${MAX_DOCUMENT_LENGTH:-30000}
+      - RAG_TOP_K=${RAG_TOP_K:-5}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.2}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    restart: unless-stopped
+
+volumes:
+  data:

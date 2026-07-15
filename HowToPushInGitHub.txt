@@ -1,0 +1,13 @@
+# Как запушить самостоятельно
+# Распакуйте архив (или используйте уже готовый git-репозиторий, если работаете в том же окружении)
+tar -xzf analyst-architect-ai.tar.gz
+cd analyst-architect-ai
+git init   # уже сделано, если продолжаете в этом же workspace
+
+git remote add origin https://github.com/MatveiV/Analyst-Architect-AI.git
+git branch -M main
+git push -u origin main --force   # --force т.к. в репо сейчас только LICENSE, конфликтов по содержимому нет
+
+# Аутентификация: используйте Personal Access Token
+# https://github.com/settings/tokens → classic token с правом repo
+# git будет спрашивать логин/пароль — вставьте токен вместо пароля

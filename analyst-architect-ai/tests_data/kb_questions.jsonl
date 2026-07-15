@@ -1,0 +1,10 @@
+{"question":"Какой SLA установлен на ответы внутри команды?","expected_needs_review":false,"why":"Ответ есть в 'Правила работы команды'"}
+{"question":"Как клиенту оформить возврат?","expected_needs_review":false,"why":"Ответ есть в 'Частые вопросы клиентов'"}
+{"question":"Какие шаги нужно пройти перед деплоем в production?","expected_needs_review":false,"why":"Ответ есть в 'Процесс запуска задачи'"}
+{"question":"Что такое ADR?","expected_needs_review":false,"why":"Ответ есть в 'Словарь терминов'"}
+{"question":"Как правильно написать шаблон ответа при эскалации?","expected_needs_review":false,"why":"Ответ есть в 'Шаблоны ответов'"}
+{"question":"Как проводится code review в команде?","expected_needs_review":false,"why":"Ответ есть в 'Правила работы команды'"}
+{"question":"Что такое RPO и чем отличается от RTO?","expected_needs_review":false,"why":"Ответ есть в 'Словарь терминов'"}
+{"question":"Какую библиотеку использовать для работы с PDF на Python?","expected_needs_review":true,"why":"Этой информации нет ни в одном документе базы знаний"}
+{"question":"Как настроить CI/CD пайплайн в GitLab?","expected_needs_review":true,"why":"Документов по DevOps в базе знаний нет"}
+{"question":"Какова стоимость нашей подписки?","expected_needs_review":true,"why":"Финансовых документов в базе знаний нет"}
