@@ -105,7 +105,12 @@ async def reindex_kb(db: AsyncSession = Depends(get_db)):
         await rag_engine.index_document(db, doc.id, doc.text)
         indexed += 1
 
-    return {"indexed": indexed}
+    # Эпик A5: полная пересборка FAISS после reindex — index_document делает delete+insert
+    # снипетов, а инкрементальный faiss.add() не умеет удалять старые векторы, поэтому
+    # после массового reindex собираем индекс с нуля, а не полагаемся на инкремент.
+    faiss_count = await rag_engine.rebuild_snippet_faiss_index(db)
+
+    return {"indexed": indexed, "faiss_indexed": faiss_count}
 
 
 @router.post("/ai/answer_with_sources")

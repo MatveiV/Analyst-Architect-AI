@@ -20,6 +20,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: '/dashboard', icon: '📊', labelKey: 'nav_dashboard' as const },
     { path: '/documents', icon: '📄', labelKey: 'nav_documents' as const },
     { path: '/reviews',   icon: '🔍', labelKey: 'nav_reviews'   as const },
+    { path: '/batch-reviews', icon: '📦', labelKey: 'nav_batch_reviews' as const },
     { path: '/kb',        icon: '🧠', labelKey: 'nav_kb'        as const },
     { path: '/studio',    icon: '🏛️', labelKey: 'nav_studio'    as const },
     { path: '/memory',    icon: '💾', labelKey: 'nav_memory'    as const },

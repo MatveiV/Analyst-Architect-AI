@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Integer
+from sqlalchemy import String, Text, DateTime, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -16,3 +16,7 @@ class AuditRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="ok")  # ok | error | needs_review
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Эпик C: доказуемость того, что запуск не покидал контур (используется на защите/в комплаенсе)
+    provider_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    is_local_provider: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -41,20 +41,28 @@ export const listDocuments = (doc_type?: string) =>
 export const getDocument = (id: string) => api.get(`/documents/${id}`);
 export const reviewDocument = (id: string, reasoning_mode = 'direct') =>
   api.post(`/documents/${id}/review?reasoning_mode=${reasoning_mode}`);
-export const generateURS = (id: string, project_name?: string) =>
-  api.post(`/documents/${id}/generate-urs?project_name=${project_name || ''}`);
-export const generateSRS = (id: string, project_name?: string) =>
-  api.post(`/documents/${id}/generate-srs?project_name=${project_name || ''}`);
+export const generateURS = (id: string, project_name?: string, standard?: string) =>
+  api.post(`/documents/${id}/generate-urs`, null, {
+    params: { project_name: project_name || undefined, standard: standard || undefined },
+  });
+export const generateSRS = (id: string, project_name?: string, standard?: string) =>
+  api.post(`/documents/${id}/generate-srs`, null, {
+    params: { project_name: project_name || undefined, standard: standard || undefined },
+  });
 export const generateADR = (id: string, project_name?: string) =>
   api.post(`/documents/${id}/generate-adr?project_name=${project_name || ''}`);
 export const recommendArchitecture = (id: string, project_name?: string) =>
   api.post(`/documents/${id}/recommend-architecture?project_name=${project_name || ''}`);
 export const designAPI = (id: string, project_name?: string) =>
   api.post(`/documents/${id}/design-api?project_name=${project_name || ''}`);
-export const generateDiagrams = (id: string, project_name?: string) =>
-  api.post(`/documents/${id}/generate-diagrams?project_name=${project_name || ''}`);
+export const generateDiagrams = (id: string, project_name?: string, standard?: string) =>
+  api.post(`/documents/${id}/generate-diagrams`, null, {
+    params: { project_name: project_name || undefined, standard: standard || undefined },
+  });
 export const exportDocx = (id: string) =>
   api.get(`/documents/${id}/export/docx`, { responseType: 'blob' });
+export const exportFullPackageDocx = (id: string) =>
+  api.get(`/documents/${id}/export/full-package/docx`, { responseType: 'blob' });
 export const exportMarkdown = (id: string) =>
   api.get(`/documents/${id}/export/markdown`, { responseType: 'blob' });
 export const uploadMarkdown = (file: File, projectName?: string) => {
@@ -67,8 +75,11 @@ export const uploadMarkdown = (file: File, projectName?: string) => {
 };
 
 // ── Reviews ──────────────────────────────────────────────────────────────────
-export const listReviews = (needs_review?: boolean) =>
-  api.get('/reviews', { params: needs_review !== undefined ? { needs_review } : {} });
+export const listReviews = (needs_review?: boolean, document_id?: string) =>
+  api.get('/reviews', { params: { ...(needs_review !== undefined ? { needs_review } : {}), ...(document_id ? { document_id } : {}) } });
+// Фаза 2: сравнение двух рецензий одного документа (до/после обновлённого ТЗ)
+export const diffReviews = (fromId: string, toId: string) =>
+  api.get('/reviews/diff', { params: { from_id: fromId, to_id: toId } });
 export const getReview = (id: string) => api.get(`/reviews/${id}`);
 export const directReview = (text: string) => api.post('/ai/review', { text });
 export const exportReviewJson = (id: string) => api.get(`/reviews/${id}/export/json`, { responseType: 'blob' });
@@ -92,8 +103,35 @@ export const consolidateMemory = () => api.post('/memory/consolidate');
 // ── Diagrams ─────────────────────────────────────────────────────────────────
 export const getDocumentDiagrams = (doc_id: string) => api.get(`/diagrams/document/${doc_id}`);
 export const generateC4 = (doc_id: string) => api.post(`/diagrams/generate-c4?doc_id=${doc_id}`);
-export const generateUML = (doc_id: string) => api.post(`/diagrams/generate-uml?doc_id=${doc_id}`);
+export const generateUML = (doc_id: string, standard?: string) =>
+  api.post(`/diagrams/generate-uml`, null, { params: { doc_id, standard: standard || undefined } });
 export const generateERD = (doc_id: string) => api.post(`/diagrams/generate-erd?doc_id=${doc_id}`);
+// Эпик A3: правка + история версий + rollback
+export const updateDiagram = (id: string, source_code: string, change_note?: string) =>
+  api.put(`/diagrams/${id}`, { source_code, change_note: change_note || '' });
+export const getDiagramVersions = (id: string) => api.get(`/diagrams/${id}/versions`);
+export const rollbackDiagram = (id: string, versionNumber: number) =>
+  api.post(`/diagrams/${id}/rollback/${versionNumber}`);
+
+// ── Batch Review (Фаза 2) ───────────────────────────────────────────────────
+export const createBatchReview = (data: { title?: string; items: { title: string; text: string }[]; reasoning_mode?: string }) =>
+  api.post('/batch-reviews', data);
+export const listBatchReviews = () => api.get('/batch-reviews');
+export const getBatchReview = (id: string, needsReview?: boolean) =>
+  api.get(`/batch-reviews/${id}`, { params: needsReview !== undefined ? { needs_review: needsReview } : {} });
+export const exportBatchReviewCsv = (id: string) =>
+  api.get(`/batch-reviews/${id}/export/csv`, { responseType: 'blob' });
+export const listStandards = (family?: 'requirements' | 'diagram') =>
+  api.get('/standards', { params: family ? { family } : {} });
+export const setDocumentStandards = (
+  doc_id: string,
+  data: { default_requirements_standard?: string | null; default_diagram_standard?: string | null }
+) => api.patch(`/documents/${doc_id}/standards`, data);
+export const listRequirementsDocuments = (doc_id: string) =>
+  api.get(`/documents/${doc_id}/requirements-documents`);
+export const getRequirementsDocument = (id: string) => api.get(`/requirements-documents/${id}`);
+// Фаза 2: упрощённая трассируемость (счётчики покрытия, не пооперационная привязка)
+export const getDocumentCoverage = (doc_id: string) => api.get(`/documents/${doc_id}/coverage`);
 
 // ── Architecture ─────────────────────────────────────────────────────────────
 export const getArchReviews = (doc_id: string) =>
@@ -114,6 +152,8 @@ export const activateProvider = (provider: string) =>
 export const getActiveProvider = () => api.get('/settings/active');
 export const testProvider = (provider: string) =>
   api.post(`/settings/test?provider=${provider}`);
+// Эпик C4: список реально скачанных Ollama-моделей вместо угадывания имени
+export const listOllamaModels = () => api.get('/settings/providers/ollama/models');
 
 // ── Economics module (Build Projects, Task Estimates, ROI) ───────────────────
 export const createBuildProject = (data: { document_id: string; name: string; description?: string }) =>
@@ -135,6 +175,8 @@ export const exportBusinessCasePdf = (id: string) =>
 export const getDashboardStats = () => api.get('/dashboard/stats');
 export const getRecentActivity = (limit?: number) =>
   api.get('/dashboard/recent-activity', { params: limit ? { limit } : {} });
+// Эпик C6: честные метрики качества по фактически использованному провайдеру
+export const getStatsByProvider = () => api.get('/dashboard/stats-by-provider');
 
 // ── Seed / demo data (admin only) ─────────────────────────────────────────────
 export const seedDocuments = () => api.post('/seed/documents');

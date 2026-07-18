@@ -18,9 +18,11 @@ from app.database import Base  # noqa: E402
 from app.models import (  # noqa: E402, F401
     document, review, snippet, qa_run, audit_run,
     memory_item, decision, risk_catalog, project_lesson,
-    architecture_review, api_spec, adr_record, diagram_artifact,
+    architecture_review, api_spec, adr_record, diagram_artifact, diagram_version,
+    documentation_standard, requirements_document,
     provider_settings, user,
     build_project, task_estimate, economic_estimate, economic_actual,
+    batch_review, batch_review_item,
 )
 
 target_metadata = Base.metadata

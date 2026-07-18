@@ -6,6 +6,7 @@ from typing import Any, Callable, Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, and_
 from app.models.audit_run import AuditRun
+from app.services.llm_client import get_last_call_meta
 
 
 async def save_audit(
@@ -16,6 +17,8 @@ async def save_audit(
     status: str = "ok",
     error: str | None = None,
     duration_ms: int = 0,
+    provider_used: str | None = None,
+    is_local_provider: bool = False,
 ) -> AuditRun:
     run = AuditRun(
         id=str(uuid.uuid4()),
@@ -26,6 +29,8 @@ async def save_audit(
         status=status,
         error=error,
         duration_ms=duration_ms,
+        provider_used=provider_used,
+        is_local_provider=is_local_provider,
     )
     db.add(run)
     await db.commit()
@@ -44,11 +49,21 @@ async def with_audit(
         duration = int((time.time() - start) * 1000)
         status = "needs_review" if getattr(result, "needs_review", False) else "ok"
         result_dict = result.model_dump() if hasattr(result, "model_dump") else result
-        await save_audit(db, action, input_data, result_dict, status=status, duration_ms=duration)
+        # Эпик C3: кто фактически обрабатывал запрос — записываем в аудит для доказуемости,
+        # что документ не покидал локальный контур (провайдер ollama).
+        meta = get_last_call_meta()
+        await save_audit(
+            db, action, input_data, result_dict, status=status, duration_ms=duration,
+            provider_used=meta.get("provider"), is_local_provider=bool(meta.get("is_local")),
+        )
         return result
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        await save_audit(db, action, input_data, None, status="error", error=str(e), duration_ms=duration)
+        meta = get_last_call_meta()
+        await save_audit(
+            db, action, input_data, None, status="error", error=str(e), duration_ms=duration,
+            provider_used=meta.get("provider"), is_local_provider=bool(meta.get("is_local")),
+        )
         raise
 
 

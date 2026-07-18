@@ -20,6 +20,8 @@ class DocumentOut(BaseModel):
     text: str
     doc_type: str
     project_name: Optional[str] = None
+    default_requirements_standard: Optional[str] = None
+    default_diagram_standard: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -96,6 +98,8 @@ class AuditRunOut(BaseModel):
     status: str
     error: Optional[str] = None
     duration_ms: int
+    provider_used: Optional[str] = None
+    is_local_provider: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -198,6 +202,13 @@ class APISpecOut(BaseModel):
 
 # ─── Diagrams ─────────────────────────────────────────────────────────────────
 
+class ViewpointItem(BaseModel):
+    """Эпик B4: вид архитектуры по ISO/IEC/IEEE 42010, привязанный к интересу стейкхолдера."""
+    name: str = ""
+    stakeholder_concern: str = ""
+    diagram_code: str = ""
+
+
 class DiagramSetSchema(BaseModel):
     c4_context: str = ""
     c4_container: str = ""
@@ -209,6 +220,8 @@ class DiagramSetSchema(BaseModel):
     mermaid_flowchart: str = ""
     confidence: str = "medium"
     needs_review: bool = False
+    standard_profile: str = "C4_MODEL"
+    viewpoints: List[ViewpointItem] = []
 
 
 class DiagramArtifactOut(BaseModel):
@@ -218,7 +231,151 @@ class DiagramArtifactOut(BaseModel):
     diagram_type: str
     notation: str
     source_code: str
+    render_svg: str | None = None
+    rendered_at: datetime | None = None
+    render_status: str = "pending"
+    render_error: str | None = None
+    standard_profile: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class DiagramUpdateIn(BaseModel):
+    source_code: str = Field(min_length=1, max_length=50_000)
+    change_note: str = Field(default="", max_length=300)
+
+
+class DiagramVersionOut(BaseModel):
+    id: str
+    diagram_artifact_id: str
+    version_number: int
+    source_code: str
+    notation: str
+    created_at: datetime
+    created_by: str | None = None
+    change_note: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentationStandardOut(BaseModel):
+    id: str
+    name_ru: str
+    name_en: str
+    family: str
+    description: str | None = None
+    is_active: bool = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RequirementsDocumentOut(BaseModel):
+    id: str
+    document_id: str
+    doc_kind: str
+    standard_profile: str
+    content_json: str
+    confidence: str
+    needs_review: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentStandardsIn(BaseModel):
+    default_requirements_standard: str | None = None
+    default_diagram_standard: str | None = None
+
+
+# ─── Batch Review (Фаза 2) ─────────────────────────────────────────────────────
+
+class BatchReviewInputItem(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    text: str = Field(min_length=10, max_length=30_000)
+
+
+class BatchReviewCreate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=300)
+    items: List[BatchReviewInputItem] = Field(min_length=1, max_length=50)
+    reasoning_mode: str = Field(default="direct", pattern="^(direct|cot|react)$")
+
+
+class BatchReviewItemOut(BaseModel):
+    id: str
+    order_index: int
+    title: str
+    document_id: Optional[str] = None
+    review_id: Optional[str] = None
+    status: str
+    needs_review: bool
+    confidence: Optional[str] = None
+    error: Optional[str] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchReviewOut(BaseModel):
+    id: str
+    created_at: datetime
+    title: Optional[str] = None
+    status: str
+    total_count: int
+    completed_count: int
+    needs_review_count: int
+    error_count: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchReviewDetailOut(BatchReviewOut):
+    items: List[BatchReviewItemOut] = []
+
+
+# ─── Coverage / упрощённая трассируемость (Фаза 2) ────────────────────────────
+# Честная оговорка: это агрегированные счётчики покрытия (сколько требований/диаграмм/
+# критериев приёмки есть у документа), а НЕ пооперационная привязка "требование → элемент
+# диаграммы" — такая точная трассируемость потребовала бы отдельного LLM-этапа сопоставления
+# и не реализована в этом объёме.
+
+class CoverageRequirementItem(BaseModel):
+    id: str = ""
+    description: str = ""
+
+
+class CoverageOut(BaseModel):
+    document_id: str
+    requirements_standard: Optional[str] = None
+    diagram_standard: Optional[str] = None
+    requirements: List[CoverageRequirementItem] = []
+    requirements_source: Optional[str] = None  # "urs" | "srs" | None
+    diagrams_count: int = 0
+    diagrams_rendered_count: int = 0
+    diagrams_by_type: List[str] = []
+    acceptance_criteria: List[str] = []
+    risks_count: int = 0
+    risks_high_count: int = 0
+    has_requirements: bool = False
+    has_diagrams: bool = False
+    has_acceptance_criteria: bool = False
+    is_fully_covered: bool = False
+
+
+# ─── Review diff (Фаза 2) ──────────────────────────────────────────────────────
+# Сравнение двух рецензий одного документа (например, до/после обновлённого ТЗ от заказчика).
+
+class ReviewDiffOut(BaseModel):
+    from_review_id: str
+    to_review_id: str
+    from_created_at: datetime
+    to_created_at: datetime
+    confidence_changed: bool = False
+    confidence_from: str = ""
+    confidence_to: str = ""
+    needs_review_changed: bool = False
+    needs_review_from: bool = False
+    needs_review_to: bool = False
+    summary_diff_lines: List[str] = []  # unified diff строк резюме
+    risks_added: List[str] = []
+    risks_removed: List[str] = []
+    acceptance_criteria_added: List[str] = []
+    acceptance_criteria_removed: List[str] = []
+    missing_requirements_added: List[str] = []
+    missing_requirements_removed: List[str] = []
 
 
 # ─── URS / SRS ────────────────────────────────────────────────────────────────
@@ -230,8 +387,10 @@ class URSSchema(BaseModel):
     user_requirements: List[dict] = []
     non_functional_requirements: List[dict] = []
     constraints: List[str] = []
+    missing_requirements: List[str] = []
     confidence: str = "medium"
     needs_review: bool = False
+    standard_profile: str = "ISO_IEC_IEEE_29148"
 
 
 class SRSSchema(BaseModel):
@@ -241,8 +400,10 @@ class SRSSchema(BaseModel):
     functional_requirements: List[dict] = []
     non_functional_requirements: List[dict] = []
     external_interfaces: List[str] = []
+    missing_requirements: List[str] = []
     confidence: str = "medium"
     needs_review: bool = False
+    standard_profile: str = "ISO_IEC_IEEE_29148"
 
 
 # ─── Direct AI call ──────────────────────────────────────────────────────────
@@ -260,7 +421,7 @@ class DirectAnswerRequest(BaseModel):
 # ─── Provider Settings ────────────────────────────────────────────────────────
 
 class ProviderSettingsIn(BaseModel):
-    provider: str = Field(pattern="^(anthropic|openai|proxyapi|openrouter)$")
+    provider: str = Field(pattern="^(anthropic|openai|proxyapi|openrouter|ollama)$")
     api_key: str = Field(default="", max_length=500)
     model: str = Field(default="", max_length=100)
     base_url: str = Field(default="", max_length=500)
@@ -281,6 +442,7 @@ class ProviderSettingsOut(BaseModel):
     max_tokens: int
     route: str
     is_active: bool
+    is_local: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -292,6 +454,22 @@ class ActiveProviderOut(BaseModel):
     temperature: float
     max_tokens: int
     route: str
+    is_local: bool = False
+
+
+class OllamaModelOut(BaseModel):
+    name: str
+    size_bytes: int | None = None
+    modified_at: str | None = None
+
+
+class ProviderStatsOut(BaseModel):
+    provider: str
+    is_local: bool
+    total_runs: int
+    error_rate_pct: float
+    needs_review_rate_pct: float
+    avg_duration_ms: float
 
 
 # ─── Economic Module: Build Projects, Task Estimates, ROI ────────────────────

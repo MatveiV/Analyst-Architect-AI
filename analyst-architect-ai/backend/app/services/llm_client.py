@@ -1,12 +1,21 @@
 """
-Unified LLM client — Anthropic Claude, OpenAI GPT, ProxyAPI.
+Unified LLM client — Anthropic Claude, OpenAI GPT, ProxyAPI, OpenRouter, Ollama (Эпик C).
 
 Priority for runtime config:
-  1. DB-stored ProviderSettings (if api_key present)
+  1. DB-stored ProviderSettings (if api_key present, or provider == "ollama")
   2. app.config.settings (from .env)
 """
 import json
 from app.config import settings
+
+# ── Эпик C3: метаданные последнего вызова, для audit_service (доказуемость локальности) ──
+_last_call_meta: dict = {"provider": None, "is_local": False}
+
+
+def get_last_call_meta() -> dict:
+    """Возвращает провайдера последнего вызова call_llm() — используется audit_service,
+    чтобы записать в audit_runs, был ли конкретный запуск локальным (провайдер ollama)."""
+    return dict(_last_call_meta)
 
 
 async def _load_active_config() -> dict:
@@ -21,12 +30,12 @@ async def _load_active_config() -> dict:
         from sqlalchemy import select
 
         async with AsyncSessionLocal() as db:
-            # 1) Try active provider with key
+            # 1) Try active provider with key (Ollama не требует ключа — Эпик C1)
             res = await db.execute(
                 select(ProviderSettings).where(ProviderSettings.is_active == "true")
             )
             row = res.scalar_one_or_none()
-            if row and row.api_key:
+            if row and (row.api_key or row.provider == "ollama"):
                 return _cfg_from_row(row)
 
             # 2) Try any provider with a key if none is active
@@ -48,19 +57,36 @@ async def _load_active_config() -> dict:
 def _cfg_from_row(row) -> dict:
     return {
         "provider": row.provider,
-        "api_key": row.api_key,
+        "api_key": row.api_key or ("ollama" if row.provider == "ollama" else ""),
         "model": row.model,
-        "base_url": row.base_url or "",
+        "base_url": row.base_url or (settings.OLLAMA_BASE_URL if row.provider == "ollama" else ""),
         "temperature": float(row.temperature or "0.2"),
         "max_tokens": int(row.max_tokens or "4096"),
         "route": row.route or "",
+        "is_local": bool(getattr(row, "is_local", False)) or row.provider == "ollama",
     }
 
 def _cfg_from_env() -> dict:
     provider = settings.LLM_PROVIDER.lower()
-    model_map = {"anthropic": settings.LLM_MODEL_ANTHROPIC, "openai": settings.LLM_MODEL_OPENAI, "openrouter": settings.LLM_MODEL_OPENROUTER}
-    api_key_map = {"anthropic": settings.ANTHROPIC_API_KEY, "openai": settings.OPENAI_API_KEY, "proxyapi": settings.PROXYAPI_KEY, "openrouter": settings.OPENROUTER_API_KEY}
-    base_url_map = {"openrouter": settings.OPENROUTER_BASE_URL, "proxyapi": settings.PROXYAPI_BASE_URL}
+    model_map = {
+        "anthropic": settings.LLM_MODEL_ANTHROPIC,
+        "openai": settings.LLM_MODEL_OPENAI,
+        "openrouter": settings.LLM_MODEL_OPENROUTER,
+        "ollama": settings.OLLAMA_MODEL,
+    }
+    api_key_map = {
+        "anthropic": settings.ANTHROPIC_API_KEY,
+        "openai": settings.OPENAI_API_KEY,
+        "proxyapi": settings.PROXYAPI_KEY,
+        "openrouter": settings.OPENROUTER_API_KEY,
+        # Ollama не проверяет ключ, но OpenAI-совместимому клиенту нужна непустая строка.
+        "ollama": "ollama",
+    }
+    base_url_map = {
+        "openrouter": settings.OPENROUTER_BASE_URL,
+        "proxyapi": settings.PROXYAPI_BASE_URL,
+        "ollama": settings.OLLAMA_BASE_URL,
+    }
     route_map = {"openrouter": settings.OPENROUTER_ROUTE}
     return {
         "provider": provider,
@@ -70,6 +96,7 @@ def _cfg_from_env() -> dict:
         "temperature": settings.LLM_TEMPERATURE,
         "max_tokens": settings.LLM_MAX_TOKENS,
         "route": route_map.get(provider, ""),
+        "is_local": provider == "ollama",
     }
 
 
@@ -78,11 +105,16 @@ async def call_llm(prompt: str, system: str = "") -> str:
     Call the active LLM provider and return raw string response.
     Raises RuntimeError on failure.
     """
+    global _last_call_meta
     cfg = await _load_active_config()
     provider = cfg["provider"]
     api_key = cfg.get("api_key", "")
 
-    if not api_key:
+    # Эпик C3: фиксируем провайдера ДО вызова, чтобы audit_service мог записать
+    # provider_used/is_local_provider даже если сам вызов упадёт с ошибкой.
+    _last_call_meta = {"provider": provider, "is_local": bool(cfg.get("is_local", False))}
+
+    if not api_key and provider != "ollama":
         raise RuntimeError(
             f"API-ключ для {provider} не настроен. "
             f"Укажите ключ в Настройках → {provider.upper()} или в файле .env"
@@ -92,8 +124,30 @@ async def call_llm(prompt: str, system: str = "") -> str:
         return await _call_anthropic(prompt, system, cfg)
     elif provider in ("openai", "proxyapi", "openrouter"):
         return await _call_openai_compat(prompt, system, cfg)
+    elif provider == "ollama":
+        return await _call_ollama(prompt, system, cfg)
     else:
         raise RuntimeError(f"Unknown LLM provider: {provider}")
+
+
+async def _call_ollama(prompt: str, system: str, cfg: dict) -> str:
+    """
+    Эпик C1: Ollama отдаёт OpenAI-совместимый /v1/chat/completions — переиспользуем
+    _call_openai_compat(), но принудительно включаем JSON-режим (constrained decoding),
+    т.к. локальные модели заметно хуже держат формат, чем облачные.
+
+    Если первый ответ пустой/невалидный — один explicit retry с более прямой инструкцией,
+    прежде чем сервис-вызывающая сторона откатится на safe_fallback_*.
+    """
+    text = await _call_openai_compat(prompt, system, cfg, force_json=True)
+    if text and text.strip():
+        return text
+
+    retry_system = (
+        (system or "") + "\n\nВАЖНО: верни ТОЛЬКО валидный JSON, без единого слова до или после, "
+        "без markdown-разметки и пояснений."
+    )
+    return await _call_openai_compat(prompt, retry_system, cfg, force_json=True)
 
 
 async def _call_anthropic(prompt: str, system: str, cfg: dict) -> str:
@@ -110,11 +164,13 @@ async def _call_anthropic(prompt: str, system: str, cfg: dict) -> str:
     return text or ""
 
 
-async def _call_openai_compat(prompt: str, system: str, cfg: dict) -> str:
+async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: bool = False) -> str:
     """
-    OpenAI-compatible call — works for OpenAI, ProxyAPI, and OpenRouter.
+    OpenAI-compatible call — works for OpenAI, ProxyAPI, OpenRouter, and Ollama.
     ProxyAPI is an OpenAI-compatible proxy that supports Claude models.
     OpenRouter uses X-Route header to select routing mode.
+    force_json=True (Ollama, Эпик C1) — включает constrained JSON decoding на стороне модели,
+    что заметно повышает надёжность строгого JSON-контракта у более слабых локальных моделей.
     """
     from openai import OpenAI
 
@@ -135,11 +191,16 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict) -> str:
     messages.append({"role": "user", "content": prompt})
 
     model = cfg["model"] or (settings.LLM_MODEL_OPENROUTER if cfg.get("provider") == "openrouter" else settings.LLM_MODEL_OPENAI)
+    extra_kwargs: dict = {}
+    if force_json:
+        # Ollama принимает OpenAI-совместимый response_format={"type": "json_object"}
+        extra_kwargs["extra_body"] = {"format": "json"}
     response = client.chat.completions.create(
         model=model,
         max_tokens=cfg["max_tokens"],
         temperature=cfg["temperature"],
         messages=messages,
+        **extra_kwargs,
     )
     content = response.choices[0].message.content
     return content or ""

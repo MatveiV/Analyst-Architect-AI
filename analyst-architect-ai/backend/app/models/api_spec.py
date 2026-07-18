@@ -14,4 +14,6 @@ class APISpec(Base):
     openapi_json: Mapped[str] = mapped_column(Text, nullable=False)
     openapi_yaml: Mapped[str] = mapped_column(Text, nullable=False)
 
+    standard_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     document = relationship("Document", back_populates="api_specs")
