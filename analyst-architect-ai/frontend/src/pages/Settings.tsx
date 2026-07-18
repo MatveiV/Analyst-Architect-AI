@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { listProviders, saveProvider, activateProvider, testProvider, seedExamples } from '../api';
+import { listProviders, saveProvider, activateProvider, testProvider, seedExamples, listOllamaModels } from '../api';
 import { SectionHeader, Spinner, toast } from '../components/ui';
 import { useI18n } from '../i18n';
 
@@ -13,6 +13,7 @@ interface Provider {
   max_tokens: number;
   route: string;
   is_active: boolean;
+  is_local: boolean;
   updated_at: string;
 }
 
@@ -25,8 +26,9 @@ const OPENROUTER_ROUTES = [
 const PROVIDER_META: Record<string, {
   label: string; icon: string; color: string;
   defaultModels: string[]; showBaseUrl: boolean;
-  infoKey: 'set_anthropic_info' | 'set_openai_info' | 'set_proxyapi_info' | 'set_openrouter_info';
+  infoKey: 'set_anthropic_info' | 'set_openai_info' | 'set_proxyapi_info' | 'set_openrouter_info' | 'set_ollama_info';
   docsUrl: string;
+  isLocal?: boolean;
 }> = {
   anthropic: {
     label: 'Anthropic Claude',
@@ -84,6 +86,17 @@ const PROVIDER_META: Record<string, {
     infoKey: 'set_openrouter_info',
     docsUrl: 'https://openrouter.ai/docs',
   },
+  // Эпик C: локальные LLM через Ollama — данные не покидают корпоративный контур
+  ollama: {
+    label: 'Ollama (локально)',
+    icon: '🔒',
+    color: 'border-teal-500/40 bg-teal-500/5',
+    defaultModels: [], // список подтягивается живьём через listOllamaModels()
+    showBaseUrl: true,
+    infoKey: 'set_ollama_info',
+    docsUrl: 'https://github.com/ollama/ollama',
+    isLocal: true,
+  },
 };
 
 export default function SettingsPage() {
@@ -97,6 +110,10 @@ export default function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { status: string; msg: string }>>({});
   const [forms, setForms] = useState<Record<string, any>>({});
+  // Эпик C4: живой список локально скачанных Ollama-моделей (не угадывание имени руками)
+  const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
+  const [ollamaModelsError, setOllamaModelsError] = useState(false);
+  const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,12 +139,25 @@ export default function SettingsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Эпик C4: подтягиваем реальный список скачанных моделей при открытии карточки Ollama
+  useEffect(() => {
+    if (editing !== 'ollama') return;
+    setOllamaModelsLoading(true);
+    setOllamaModelsError(false);
+    listOllamaModels()
+      .then(res => setOllamaModels(res.data.map((m: any) => m.name)))
+      .catch(() => setOllamaModelsError(true))
+      .finally(() => setOllamaModelsLoading(false));
+  }, [editing]);
+
   const handleSave = async (provider: string) => {
     setSaving(provider);
     try {
       const form = forms[provider];
+      const meta = PROVIDER_META[provider];
       await saveProvider({
         provider,
+        // Эпик C1: Ollama не требует ключа — отправляем как есть (backend примет пустой)
         api_key: form.api_key || '',
         model: form.model,
         base_url: form.base_url,
@@ -213,6 +243,11 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {activeProvider.is_local && (
+              <span className="text-xs bg-teal-500/20 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-medium mr-2">
+                {t('set_local_badge')}
+              </span>
+            )}
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-xs text-green-400 font-medium">Active</span>
           </div>
@@ -221,13 +256,15 @@ export default function SettingsPage() {
 
       {/* Provider cards */}
       <div className="space-y-4">
-        {(['anthropic', 'openai', 'proxyapi', 'openrouter'] as const).map(providerKey => {
+        {(['anthropic', 'openai', 'proxyapi', 'openrouter', 'ollama'] as const).map(providerKey => {
           const meta = PROVIDER_META[providerKey];
           const provData = providers.find(p => p.provider === providerKey);
           const form = forms[providerKey] || {};
           const isEdit = editing === providerKey;
           const testResult = testResults[providerKey];
-          const hasKey = !!provData?.api_key_masked;
+          // Эпик C1: для локальных провайдеров (Ollama) ключ не нужен — "настроен" значит
+          // просто есть базовый URL, тестировать можно всегда.
+          const hasKey = meta.isLocal ? true : !!provData?.api_key_masked;
 
           return (
             <div key={providerKey}
@@ -244,9 +281,16 @@ export default function SettingsPage() {
                           ✓ Active
                         </span>
                       )}
+                      {meta.isLocal && (
+                        <span className="text-xs bg-teal-500/20 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-medium">
+                          {t('set_local_badge')}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-muted mt-0.5">
-                      {hasKey
+                      {meta.isLocal
+                        ? <span className="text-teal-400">🔒 {lang === 'ru' ? 'ключ не требуется' : 'no key required'}</span>
+                        : hasKey
                         ? <span className="text-green-400">🔑 {t('set_masked')}: {provData?.api_key_masked}</span>
                         : <span className="text-red-400/70">{t('set_no_key')}</span>
                       }
@@ -307,18 +351,26 @@ export default function SettingsPage() {
                 <div className="border-t border-slate-border bg-ink-soft px-5 py-5 space-y-4 animate-fade-in">
                   <p className="text-sm font-medium text-white">{t('set_edit')} — {meta.label}</p>
 
-                  {/* API Key */}
-                  <div>
-                    <label className="label">{t('set_api_key')}</label>
-                    <input
-                      type="password"
-                      className="input font-mono"
-                      placeholder={t('set_api_key_ph')}
-                      value={form.api_key || ''}
-                      onChange={e => updateForm(providerKey, 'api_key', e.target.value)}
-                      autoComplete="new-password"
-                    />
-                  </div>
+                  {/* API Key — для локальных провайдеров (Ollama) не нужен */}
+                  {meta.isLocal ? (
+                    <div className="px-3 py-2 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs text-teal-400">
+                      🔒 {lang === 'ru'
+                        ? 'Ollama не проверяет API-ключ — запросы идут напрямую на указанный ниже адрес и не покидают вашу сеть.'
+                        : 'Ollama does not check an API key — requests go directly to the address below and never leave your network.'}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="label">{t('set_api_key')}</label>
+                      <input
+                        type="password"
+                        className="input font-mono"
+                        placeholder={t('set_api_key_ph')}
+                        value={form.api_key || ''}
+                        onChange={e => updateForm(providerKey, 'api_key', e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  )}
 
                   {/* Model */}
                   <div>
@@ -326,35 +378,66 @@ export default function SettingsPage() {
                     <div className="flex gap-2">
                       <input
                         className="input flex-1 font-mono text-sm"
-                        placeholder={meta.defaultModels[0]}
+                        placeholder={meta.defaultModels[0] || 'qwen2.5:14b-instruct'}
                         value={form.model || ''}
                         onChange={e => updateForm(providerKey, 'model', e.target.value)}
                       />
-                      <select
-                        className="input w-56 font-mono text-sm"
-                        onChange={e => e.target.value && updateForm(providerKey, 'model', e.target.value)}
-                        value="">
-                        <option value="">— выбрать —</option>
-                        {meta.defaultModels.map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
+                      {providerKey === 'ollama' ? (
+                        <select
+                          className="input w-56 font-mono text-sm"
+                          onChange={e => e.target.value && updateForm(providerKey, 'model', e.target.value)}
+                          value="">
+                          <option value="">
+                            {ollamaModelsLoading ? '⏳ …' : '— выбрать —'}
+                          </option>
+                          {(ollamaModels || []).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          className="input w-56 font-mono text-sm"
+                          onChange={e => e.target.value && updateForm(providerKey, 'model', e.target.value)}
+                          value="">
+                          <option value="">— выбрать —</option>
+                          {meta.defaultModels.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
+                    {providerKey === 'ollama' && ollamaModelsError && (
+                      <p className="text-xs text-red-400/80 mt-1">{t('set_ollama_models_err')}</p>
+                    )}
+                    {providerKey === 'ollama' && !ollamaModelsLoading && !ollamaModelsError && (ollamaModels?.length ?? 0) === 0 && (
+                      <p className="text-xs text-slate-muted mt-1">{t('set_ollama_no_models')}</p>
+                    )}
                   </div>
 
-                  {/* Base URL (for openai / proxyapi) */}
+                  {/* Base URL (for openai / proxyapi / ollama) */}
                   {meta.showBaseUrl && (
                     <div>
                       <label className="label">{t('set_base_url')}</label>
                       <input
                         className="input font-mono text-sm"
-                        placeholder={providerKey === 'proxyapi' ? 'https://api.proxyapi.ru/openai/v1' : 'https://api.openai.com/v1'}
+                        placeholder={
+                          providerKey === 'proxyapi' ? 'https://api.proxyapi.ru/openai/v1'
+                          : providerKey === 'ollama' ? 'http://ollama:11434/v1'
+                          : 'https://api.openai.com/v1'
+                        }
                         value={form.base_url || ''}
                         onChange={e => updateForm(providerKey, 'base_url', e.target.value)}
                       />
                       {providerKey === 'proxyapi' && (
                         <p className="text-xs text-slate-muted mt-1">
                           По умолчанию: <code className="font-mono text-accent">https://api.proxyapi.ru/openai/v1</code>
+                        </p>
+                      )}
+                      {providerKey === 'ollama' && (
+                        <p className="text-xs text-slate-muted mt-1">
+                          {lang === 'ru'
+                            ? <>Если Ollama установлена на этой же машине (не в docker-compose): <code className="font-mono text-accent">http://host.docker.internal:11434/v1</code> (Windows/Mac) или <code className="font-mono text-accent">http://172.17.0.1:11434/v1</code> (Linux)</>
+                            : <>If Ollama runs on the host (not via docker-compose): <code className="font-mono text-accent">http://host.docker.internal:11434/v1</code> (Windows/Mac) or <code className="font-mono text-accent">http://172.17.0.1:11434/v1</code> (Linux)</>}
                         </p>
                       )}
                     </div>

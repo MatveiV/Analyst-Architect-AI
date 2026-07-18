@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime
+from sqlalchemy import String, Text, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -22,3 +22,5 @@ class ProviderSettings(Base):
     max_tokens: Mapped[str] = mapped_column(String(10), default="4096")
     route: Mapped[str] = mapped_column(String(50), default="openrouter/free")  # openrouter/free | openrouter/fusion | openrouter/pareto-code
     is_active: Mapped[str] = mapped_column(String(5), default="false")  # "true"|"false" as string
+    # Эпик C: провайдер не отправляет данные за пределы контура (true для ollama)
+    is_local: Mapped[bool] = mapped_column(Boolean, default=False)

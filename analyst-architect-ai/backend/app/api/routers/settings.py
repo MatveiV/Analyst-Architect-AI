@@ -15,9 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+import httpx
+from app.config import settings as app_settings_module
 from app.database import get_db
 from app.models.provider_settings import ProviderSettings
-from app.schemas import ProviderSettingsIn, ProviderSettingsOut, ActiveProviderOut
+from app.schemas import ProviderSettingsIn, ProviderSettingsOut, ActiveProviderOut, OllamaModelOut
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -27,13 +29,19 @@ DEFAULT_MODELS = {
     "openai": "gpt-4o",
     "proxyapi": "claude-sonnet-4-20250514",
     "openrouter": "openrouter/auto",
+    "ollama": "qwen2.5:14b-instruct",
 }
+
+ALL_PROVIDERS = ("anthropic", "openai", "proxyapi", "openrouter", "ollama")
+# Провайдеры, работающие полностью локально — данные не покидают контур (Эпик C).
+LOCAL_PROVIDERS = ("ollama",)
 
 DEFAULT_BASE_URLS = {
     "anthropic": "",
     "openai": "",
     "proxyapi": "https://api.proxyapi.ru/openai/v1",
     "openrouter": "https://openrouter.ai/api/v1",
+    "ollama": "http://ollama:11434/v1",
 }
 
 DEFAULT_ROUTES = {
@@ -70,6 +78,10 @@ def _apply_to_runtime(row: ProviderSettings) -> None:
             app_settings.LLM_MODEL_OPENAI = row.model
         elif row.provider == "openrouter":
             app_settings.LLM_MODEL_OPENROUTER = row.model
+        elif row.provider == "ollama":
+            app_settings.OLLAMA_MODEL = row.model
+    if row.base_url and row.provider == "ollama":
+        app_settings.OLLAMA_BASE_URL = row.base_url
     if row.temperature:
         app_settings.LLM_TEMPERATURE = float(row.temperature)
     if row.max_tokens:
@@ -89,6 +101,7 @@ def _row_to_out(row: ProviderSettings) -> ProviderSettingsOut:
         max_tokens=int(row.max_tokens or "4096"),
         route=row.route or DEFAULT_ROUTES.get(row.provider, ""),
         is_active=(row.is_active == "true"),
+        is_local=bool(row.is_local) or row.provider in LOCAL_PROVIDERS,
     )
 
 
@@ -116,7 +129,7 @@ async def _get_or_create(db: AsyncSession, provider: str) -> ProviderSettings:
 @router.get("/providers", response_model=List[ProviderSettingsOut])
 async def list_providers(db: AsyncSession = Depends(get_db)):
     """Return all provider configs (api_key masked). Pre-create missing defaults."""
-    for p in ("anthropic", "openai", "proxyapi", "openrouter"):
+    for p in ALL_PROVIDERS:
         await _get_or_create(db, p)
     await db.commit()
 
@@ -138,11 +151,14 @@ async def save_provider(body: ProviderSettingsIn, db: AsyncSession = Depends(get
     row.temperature = str(body.temperature)
     row.max_tokens = str(body.max_tokens)
     row.route = body.route or DEFAULT_ROUTES.get(body.provider, "")
+    row.is_local = body.provider in LOCAL_PROVIDERS
     row.updated_at = datetime.utcnow()
 
-    # If this provider just got a key and no active provider exists, auto-activate
+    # If this provider just got a key (или это ollama, которому ключ не нужен) и нет активного —
+    # автоактивируем.
+    has_credentials = bool(body.api_key) or body.provider in LOCAL_PROVIDERS
     was_auto_activated = False
-    if body.api_key:
+    if has_credentials:
         active_res = await db.execute(
             select(ProviderSettings).where(ProviderSettings.is_active == "true")
         )
@@ -168,11 +184,11 @@ async def activate_provider(
     db: AsyncSession = Depends(get_db),
 ):
     """Switch active provider. Deactivates all others."""
-    if provider not in ("anthropic", "openai", "proxyapi", "openrouter"):
+    if provider not in ALL_PROVIDERS:
         raise HTTPException(400, f"Unknown provider: {provider}")
 
     # Ensure all rows exist
-    for p in ("anthropic", "openai", "proxyapi", "openrouter"):
+    for p in ALL_PROVIDERS:
         await _get_or_create(db, p)
 
     # Deactivate all, then activate chosen
@@ -205,14 +221,18 @@ async def get_active(db: AsyncSession = Depends(get_db)):
         # Fallback: read from env settings
         from app.config import settings as s
         provider = s.LLM_PROVIDER
-        model_map = {"anthropic": s.LLM_MODEL_ANTHROPIC, "openai": s.LLM_MODEL_OPENAI, "openrouter": s.LLM_MODEL_OPENROUTER}
+        model_map = {
+            "anthropic": s.LLM_MODEL_ANTHROPIC, "openai": s.LLM_MODEL_OPENAI,
+            "openrouter": s.LLM_MODEL_OPENROUTER, "ollama": s.OLLAMA_MODEL,
+        }
         return ActiveProviderOut(
             provider=provider,
             model=model_map.get(provider, s.LLM_MODEL_OPENAI),
-            base_url="",
+            base_url=s.OLLAMA_BASE_URL if provider == "ollama" else "",
             temperature=s.LLM_TEMPERATURE,
             max_tokens=s.LLM_MAX_TOKENS,
             route=s.OPENROUTER_ROUTE if provider == "openrouter" else "",
+            is_local=(provider in LOCAL_PROVIDERS),
         )
     return ActiveProviderOut(
         provider=row.provider,
@@ -221,17 +241,47 @@ async def get_active(db: AsyncSession = Depends(get_db)):
         temperature=float(row.temperature or "0.2"),
         max_tokens=int(row.max_tokens or "4096"),
         route=row.route or DEFAULT_ROUTES.get(row.provider, ""),
+        is_local=bool(row.is_local) or row.provider in LOCAL_PROVIDERS,
     )
+
+
+@router.get("/providers/ollama/models", response_model=List[OllamaModelOut])
+async def list_ollama_models(db: AsyncSession = Depends(get_db)):
+    """
+    Эпик C4: список реально скачанных на локальной машине моделей (GET {base_url}/api/tags),
+    а не текстовое поле, в которое пользователь должен угадать имя модели.
+    """
+    res = await db.execute(select(ProviderSettings).where(ProviderSettings.provider == "ollama"))
+    row = res.scalar_one_or_none()
+    base_url = (row.base_url if row and row.base_url else DEFAULT_BASE_URLS["ollama"]).rstrip("/")
+    # base_url хранится как OpenAI-совместимый (.../v1) — тэги отдаёт нативный API без /v1
+    tags_url = base_url[:-3] + "/api/tags" if base_url.endswith("/v1") else base_url + "/api/tags"
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(tags_url)
+        if resp.status_code != 200:
+            raise HTTPException(502, f"Ollama вернул {resp.status_code} на {tags_url}")
+        data = resp.json()
+        return [
+            OllamaModelOut(
+                name=m.get("name", ""),
+                size_bytes=m.get("size"),
+                modified_at=m.get("modified_at"),
+            )
+            for m in data.get("models", [])
+        ]
+    except httpx.RequestError as e:
+        raise HTTPException(502, f"Ollama не отвечает на {tags_url}: {e}. Проверьте, что сервис запущен.")
 
 
 @router.post("/test")
 async def test_provider(provider: str, db: AsyncSession = Depends(get_db)):
-    """Send a minimal ping to the provider to verify API key."""
+    """Send a minimal ping to the provider to verify API key (или доступность — для ollama)."""
     res = await db.execute(
         select(ProviderSettings).where(ProviderSettings.provider == provider)
     )
     row = res.scalar_one_or_none()
-    if not row or not row.api_key:
+    if not row or (not row.api_key and provider not in LOCAL_PROVIDERS):
         raise HTTPException(400, "No API key configured for this provider")
 
     try:
@@ -272,15 +322,11 @@ async def test_provider(provider: str, db: AsyncSession = Depends(get_db)):
             return {"status": "ok", "response": resp.choices[0].message.content[:50]}
 
         elif provider == "openrouter":
-            import httpx
+            import httpx as _httpx
             base = (row.base_url or DEFAULT_BASE_URLS["openrouter"]).rstrip("/")
             key = row.api_key.strip().encode("ascii", "ignore").decode("ascii") if row.api_key else ""
             model = row.model or "openrouter/auto"
-            headers = {
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            }
-            async with httpx.AsyncClient() as hc:
+            async with _httpx.AsyncClient() as hc:
                 resp = await hc.post(
                     f"{base}/chat/completions",
                     headers={
@@ -306,6 +352,22 @@ async def test_provider(provider: str, db: AsyncSession = Depends(get_db)):
                 if resp.status_code == 403:
                     hint = " Проверьте ограничения ключа в дашборде OpenRouter (модели/IP/бюджет)."
                 return {"status": "error", "error": f"HTTP {resp.status_code}: {err}.{hint}"}
+
+        elif provider == "ollama":
+            # Эпик C4: тест — просто пинг /api/tags, ключ не требуется.
+            base = (row.base_url or DEFAULT_BASE_URLS["ollama"]).rstrip("/")
+            tags_url = base[:-3] + "/api/tags" if base.endswith("/v1") else base + "/api/tags"
+            async with httpx.AsyncClient(timeout=5) as hc:
+                try:
+                    resp = await hc.get(tags_url)
+                except httpx.RequestError as e:
+                    return {"status": "error",
+                            "error": f"Ollama не отвечает на {base}: {e}. "
+                                     f"Проверьте, что сервис запущен (docker compose --profile local-llm up)."}
+            if resp.status_code != 200:
+                return {"status": "error", "error": f"HTTP {resp.status_code} на {tags_url}"}
+            models = [m.get("name") for m in resp.json().get("models", [])]
+            return {"status": "ok", "response": f"Локальный контур доступен. Модели: {', '.join(models) or 'нет скачанных'}"}
 
     except Exception as e:
         return {"status": "error", "error": str(e)[:300]}

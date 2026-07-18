@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.document import Document
-from app.models.risk_catalog import RiskCatalog
+from app.models.risk_catalog import RiskCatalogItem as RiskCatalog
 from app.models.project_lesson import ProjectLesson
 from app.models.memory_item import MemoryItem
 from app.models.decision import Decision

@@ -24,5 +24,16 @@ class Settings:
     LLM_MODEL_OPENAI: str = "gpt-4o"
     LLM_MODEL_OPENROUTER: str = "openrouter/auto"
 
+    # ── Эпик A: локальный рендер диаграмм (Kroki) ─────────────────────────────
+    DIAGRAM_RENDERER_URL: str = os.getenv("DIAGRAM_RENDERER_URL", "http://kroki:8000")
+    DIAGRAM_RENDERER_TIMEOUT: float = float(os.getenv("DIAGRAM_RENDERER_TIMEOUT", "10"))
+
+    # ── Эпик C: локальные LLM через Ollama ────────────────────────────────────
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434/v1")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct")
+    # Если true — система не делает НИ ОДНОГО внешнего сетевого вызова (ни LLM, ни рендер диаграмм).
+    # Отсутствие локального сервиса приводит к явной ошибке, а не к тихому уходу во внешний сервис.
+    ENFORCE_LOCAL_ONLY: bool = os.getenv("ENFORCE_LOCAL_ONLY", "false").lower() == "true"
+
 
 settings = Settings()

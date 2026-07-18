@@ -17,8 +17,16 @@ services:
       - RAG_TOP_K=${RAG_TOP_K:-5}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.2}
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
+      # Эпик A1: локальный рендер диаграмм вместо plantuml.com/mermaid.live
+      - DIAGRAM_RENDERER_URL=${DIAGRAM_RENDERER_URL:-http://kroki:8000}
+      # Эпик C: локальные LLM через Ollama
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b-instruct}
+      - ENFORCE_LOCAL_ONLY=${ENFORCE_LOCAL_ONLY:-false}
     volumes:
       - ./data:/app/data
+    depends_on:
+      - kroki
     restart: unless-stopped
 
   frontend:
@@ -33,5 +41,27 @@ services:
       - REACT_APP_API_URL=http://localhost:8000
     restart: unless-stopped
 
+  # Эпик A1: локальный рендер PlantUML/Mermaid — данные диаграмм не покидают контур.
+  # Поднимается всегда (лёгкий сервис), в отличие от ollama, который тяжёлый и опционален.
+  kroki:
+    image: yuzutech/kroki:0.25
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+  # Эпик C2: локальные LLM. Не поднимается по умолчанию — включается флагом:
+  #   docker compose --profile local-llm up
+  # Если Ollama уже установлена на хосте, этот сервис не нужен — просто укажите в .env
+  # OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 (Windows/Mac) и не запускайте профиль.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local-llm"]
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
 volumes:
   data:
+  ollama_models:

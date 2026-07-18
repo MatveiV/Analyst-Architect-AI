@@ -12,6 +12,8 @@ from app.api.routers import risk_catalog, lessons as lessons_router
 from app.api.routers import settings as settings_router
 from app.api.routers import auth as auth_router
 from app.api.routers import build_projects, dashboard, seed
+from app.api.routers import standards as standards_router
+from app.api.routers import batch_reviews as batch_reviews_router
 from app.api.deps import require_analyst, require_architect, require_admin
 
 os.makedirs("data", exist_ok=True)
@@ -26,8 +28,18 @@ async def lifespan(app: FastAPI):
     # Seed default users on first start
     from app.database import AsyncSessionLocal
     from app.services.auth_service import seed_default_users
+    from app.services.standards_seed import seed_default_standards
+    from app.services.rag_engine import rebuild_snippet_faiss_index
     async with AsyncSessionLocal() as db:
         await seed_default_users(db)
+        # Эпик B1: гарантируем наличие справочника стандартов даже если Alembic не смог отработать
+        await seed_default_standards(db)
+        # Эпик A5: восстанавливаем FAISS-индекс по Snippet после рестарта (индекс — in-memory)
+        try:
+            n = await rebuild_snippet_faiss_index(db)
+            print(f"FAISS snippet index: {n} vectors loaded")
+        except Exception as e:
+            print(f"Warning: FAISS snippet index rebuild failed ({e}), falling back to full-scan search")
     yield
 
 
@@ -63,6 +75,7 @@ app.include_router(auth_router.router)
 # Business routers require a valid JWT for any of the three roles
 # (admin | analyst | architect)
 app.include_router(documents.router, dependencies=[Depends(require_analyst)])
+app.include_router(documents.requirements_documents_router, dependencies=[Depends(require_analyst)])
 app.include_router(reviews.router, dependencies=[Depends(require_analyst)])
 app.include_router(knowledge_base.router, dependencies=[Depends(require_analyst)])
 app.include_router(memory.router, dependencies=[Depends(require_analyst)])
@@ -71,6 +84,8 @@ app.include_router(audit.router, dependencies=[Depends(require_analyst)])
 app.include_router(dashboard.router, dependencies=[Depends(require_analyst)])
 app.include_router(risk_catalog.router, dependencies=[Depends(require_analyst)])
 app.include_router(lessons_router.router, dependencies=[Depends(require_analyst)])
+app.include_router(standards_router.router, dependencies=[Depends(require_analyst)])
+app.include_router(batch_reviews_router.router, dependencies=[Depends(require_analyst)])
 
 # Economic module — any authenticated role can create/estimate,
 # actuals entry (post-launch reconciliation) requires architect/admin judgement

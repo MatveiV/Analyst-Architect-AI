@@ -13,4 +13,6 @@ class ADRRecord(Base):
     document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id"), nullable=False)
     adr_json: Mapped[str] = mapped_column(Text, nullable=False)
 
+    standard_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     document = relationship("Document", back_populates="adr_records")

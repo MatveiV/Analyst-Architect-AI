@@ -58,3 +58,23 @@ async def auth_headers(client):
     assert resp.status_code == 200, resp.text
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+# ── Raw DB session, для тестов, вызывающих сервисный слой напрямую (Эпик C) ──
+@pytest_asyncio.fixture
+async def db_session():
+    from app.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+# ── Admin auth headers — для эндпоинтов, закрытых require_architect/require_admin
+# (например /settings/providers) — обычного analyst-токена туда недостаточно (403).
+@pytest_asyncio.fixture(scope="session")
+async def admin_auth_headers(client):
+    resp = await client.post(
+        "/auth/login", data={"username": "admin", "password": "admin123"}
+    )
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

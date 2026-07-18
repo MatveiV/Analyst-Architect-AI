@@ -18,6 +18,7 @@ import EconomicsPage   from './pages/Economics';
 import RiskCatalogPage from './pages/RiskCatalog';
 import LessonsPage     from './pages/Lessons';
 import DashboardPage   from './pages/Dashboard';
+import BatchReviewPage from './pages/BatchReview';
 
 function ProtectedApp() {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ function ProtectedApp() {
         <Route path="/documents"     element={<DocumentsPage />} />
         <Route path="/documents/:id" element={<DocumentDetail />} />
         <Route path="/reviews"       element={<ReviewsPage />} />
+        <Route path="/batch-reviews" element={<BatchReviewPage />} />
         <Route path="/kb"            element={<KnowledgeBasePage />} />
         <Route path="/studio"        element={<ArchStudioPage />} />
         <Route path="/memory"        element={<MemoryPage />} />

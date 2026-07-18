@@ -7,6 +7,7 @@ const T = {
   // ── Nav ──────────────────────────────────────────────────────────────────
   nav_documents:   { ru: 'Документы',    en: 'Documents' },
   nav_reviews:     { ru: 'Рецензии',     en: 'Reviews' },
+  nav_batch_reviews: { ru: 'Пакетная рецензия', en: 'Batch Review' },
   nav_kb:          { ru: 'База знаний',  en: 'Knowledge Base' },
   nav_studio:      { ru: 'Арх. студия',  en: 'Arch Studio' },
   nav_memory:      { ru: 'Память',       en: 'Memory' },
@@ -196,6 +197,10 @@ const T = {
   set_anthropic_info: { ru: 'Официальный API Anthropic. Поддерживает Claude 3.5 Sonnet, Claude 3 Opus и другие.', en: 'Official Anthropic API. Supports Claude 3.5 Sonnet, Claude 3 Opus and more.' },
   set_current:     { ru: 'Текущий активный', en: 'Currently active' },
   set_openrouter_info: { ru: 'OpenRouter — универсальный шлюз к 200+ LLM. Поддерживает Claude, GPT, Gemini, Llama, DeepSeek и другие. По умолчанию — openrouter/free (только бесплатные модели).', en: 'OpenRouter — unified gateway to 200+ LLMs. Supports Claude, GPT, Gemini, Llama, DeepSeek and more. Default: openrouter/free (free models only).' },
+  set_ollama_info: { ru: 'Ollama — локальный запуск моделей (Llama, Qwen, Mistral, DeepSeek и др.) на вашей машине или сервере внутри контура. API-ключ не требуется. Запросы не покидают сеть — подходит для конфиденциальных проектов (NDA, банковские данные).', en: 'Ollama — run models (Llama, Qwen, Mistral, DeepSeek, etc.) locally on your machine or in-network server. No API key needed. Requests never leave your network — suitable for confidential projects (NDA, banking data).' },
+  set_local_badge:  { ru: '🔒 Локальный контур', en: '🔒 Local network only' },
+  set_ollama_no_models: { ru: 'Нет скачанных моделей. Выполните: ollama pull qwen2.5:14b-instruct', en: 'No models downloaded. Run: ollama pull qwen2.5:14b-instruct' },
+  set_ollama_models_err: { ru: 'Не удалось получить список моделей — проверьте, что Ollama запущена', en: 'Could not fetch model list — check that Ollama is running' },
 
   // ── Document detail ───────────────────────────────────────────────────────
   det_back:        { ru: '← Документы', en: '← Documents' },

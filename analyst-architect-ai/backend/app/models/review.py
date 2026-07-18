@@ -15,5 +15,6 @@ class Review(Base):
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
     confidence: Mapped[str] = mapped_column(String(20), default="medium")
     error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    standard_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     document = relationship("Document", back_populates="reviews")

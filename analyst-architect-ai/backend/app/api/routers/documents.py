@@ -15,9 +15,12 @@ from app.models.architecture_review import ArchitectureReview
 from app.models.adr_record import ADRRecord
 from app.models.api_spec import APISpec
 from app.models.diagram_artifact import DiagramArtifact
+from app.models.requirements_document import RequirementsDocument
 from app.schemas import (
     DocumentCreate, DocumentOut, ReviewOut, ArchitectureReviewOut,
     ADRRecordOut, APISpecOut, DiagramArtifactOut,
+    RequirementsDocumentOut, DocumentStandardsIn,
+    CoverageOut, CoverageRequirementItem,
 )
 from app.services import ai_reviewer, rag_engine, architecture_engine
 from app.services import adr_generator, doc_generator, diagram_engine, export_service
@@ -25,6 +28,94 @@ from app.services.audit_service import with_audit
 from app.services.memory_service import get_memory_context, store_review_findings, rebuild_faiss_index
 from app.services.review_to_catalog import store_risks_from_review, store_lessons_from_review
 router = APIRouter(prefix="/documents", tags=["documents"])
+# Эпик B5: плоский путь для получения одного сохранённого URS/SRS вне вложенности /documents/{id}/...
+requirements_documents_router = APIRouter(tags=["documents"])
+
+
+@requirements_documents_router.get("/requirements-documents/{req_doc_id}", response_model=RequirementsDocumentOut)
+async def get_requirements_document(req_doc_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RequirementsDocument).where(RequirementsDocument.id == req_doc_id))
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, "Requirements document not found")
+    return row
+
+
+@requirements_documents_router.get("/documents/{doc_id}/coverage", response_model=CoverageOut)
+async def get_document_coverage(doc_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Фаза 2, упрощённая «матрица трассируемости»: агрегированные счётчики покрытия
+    документа требованиями/диаграммами/критериями приёмки. Это НЕ точная привязка
+    "требование → элемент диаграммы" (см. оговорку в CoverageOut) — быстрый обзор,
+    где явно не хватает диаграмм, критериев приёмки или самих требований.
+    """
+    doc_result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+
+    # Последний URS, а если его нет — последний SRS
+    req_result = await db.execute(
+        select(RequirementsDocument)
+        .where(RequirementsDocument.document_id == doc_id)
+        .order_by(desc(RequirementsDocument.created_at))
+    )
+    req_docs = req_result.scalars().all()
+    latest_urs = next((r for r in req_docs if r.doc_kind == "urs"), None)
+    latest_srs = next((r for r in req_docs if r.doc_kind == "srs"), None)
+    chosen = latest_urs or latest_srs
+
+    requirements: list[CoverageRequirementItem] = []
+    requirements_source = None
+    if chosen:
+        content = json.loads(chosen.content_json)
+        requirements_source = chosen.doc_kind
+        raw_reqs = content.get("user_requirements") or content.get("functional_requirements") or []
+        for r in raw_reqs:
+            if isinstance(r, dict):
+                requirements.append(CoverageRequirementItem(
+                    id=r.get("id", ""), description=r.get("description", ""),
+                ))
+
+    diag_result = await db.execute(select(DiagramArtifact).where(DiagramArtifact.document_id == doc_id))
+    diagrams = diag_result.scalars().all()
+    rendered_count = sum(1 for d in diagrams if d.render_status == "ok")
+
+    rev_result = await db.execute(
+        select(Review).where(Review.document_id == doc_id).order_by(desc(Review.created_at)).limit(1)
+    )
+    review = rev_result.scalar_one_or_none()
+    acceptance_criteria: list[str] = []
+    risks_count = 0
+    risks_high_count = 0
+    if review:
+        rc = json.loads(review.review_json)
+        acceptance_criteria = rc.get("acceptance_criteria", [])
+        risks = rc.get("risks", [])
+        risks_count = len(risks)
+        risks_high_count = sum(1 for r in risks if isinstance(r, dict) and r.get("severity") == "high")
+
+    has_requirements = len(requirements) > 0
+    has_diagrams = len(diagrams) > 0
+    has_acceptance_criteria = len(acceptance_criteria) > 0
+
+    return CoverageOut(
+        document_id=doc_id,
+        requirements_standard=doc.default_requirements_standard,
+        diagram_standard=doc.default_diagram_standard,
+        requirements=requirements,
+        requirements_source=requirements_source,
+        diagrams_count=len(diagrams),
+        diagrams_rendered_count=rendered_count,
+        diagrams_by_type=[d.diagram_type for d in diagrams],
+        acceptance_criteria=acceptance_criteria,
+        risks_count=risks_count,
+        risks_high_count=risks_high_count,
+        has_requirements=has_requirements,
+        has_diagrams=has_diagrams,
+        has_acceptance_criteria=has_acceptance_criteria,
+        is_fully_covered=has_requirements and has_diagrams and has_acceptance_criteria,
+    )
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -291,6 +382,7 @@ async def review_document(
 async def generate_urs(
     doc_id: str,
     project_name: Optional[str] = None,
+    standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Document).where(Document.id == doc_id))
@@ -298,12 +390,31 @@ async def generate_urs(
     if not doc:
         raise HTTPException(404, "Document not found")
 
+    standard_profile = standard or doc.default_requirements_standard or "ISO_IEC_IEEE_29148"
     ctx = await _build_project_context(db, project_name or doc.project_name)
 
     async def _run():
-        return await doc_generator.generate_urs(doc.text, doc.title, ctx)
+        return await doc_generator.generate_urs(doc.text, doc.title, ctx, standard=standard_profile)
 
-    schema = await with_audit(db, "generate_urs", {"document_id": doc_id, "project_name": project_name}, _run)
+    schema = await with_audit(
+        db, "generate_urs",
+        {"document_id": doc_id, "project_name": project_name, "standard": standard_profile}, _run,
+    )
+
+    # Эпик B2: персистентность URS — раньше была видна только через audit_runs.output
+    req_doc = RequirementsDocument(
+        id=str(uuid.uuid4()),
+        document_id=doc_id,
+        doc_kind="urs",
+        standard_profile=standard_profile,
+        content_json=json.dumps(schema.model_dump(), ensure_ascii=False),
+        confidence=schema.confidence,
+        needs_review=schema.needs_review,
+        created_at=datetime.utcnow(),
+    )
+    db.add(req_doc)
+    await db.commit()
+
     return schema.model_dump()
 
 
@@ -311,6 +422,7 @@ async def generate_urs(
 async def generate_srs(
     doc_id: str,
     project_name: Optional[str] = None,
+    standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Document).where(Document.id == doc_id))
@@ -318,13 +430,64 @@ async def generate_srs(
     if not doc:
         raise HTTPException(404, "Document not found")
 
+    standard_profile = standard or doc.default_requirements_standard or "ISO_IEC_IEEE_29148"
     ctx = await _build_project_context(db, project_name or doc.project_name)
 
     async def _run():
-        return await doc_generator.generate_srs(doc.text, doc.title, ctx)
+        return await doc_generator.generate_srs(doc.text, doc.title, ctx, standard=standard_profile)
 
-    schema = await with_audit(db, "generate_srs", {"document_id": doc_id, "project_name": project_name}, _run)
+    schema = await with_audit(
+        db, "generate_srs",
+        {"document_id": doc_id, "project_name": project_name, "standard": standard_profile}, _run,
+    )
+
+    req_doc = RequirementsDocument(
+        id=str(uuid.uuid4()),
+        document_id=doc_id,
+        doc_kind="srs",
+        standard_profile=standard_profile,
+        content_json=json.dumps(schema.model_dump(), ensure_ascii=False),
+        confidence=schema.confidence,
+        needs_review=schema.needs_review,
+        created_at=datetime.utcnow(),
+    )
+    db.add(req_doc)
+    await db.commit()
+
     return schema.model_dump()
+
+
+@router.patch("/{doc_id}/standards", response_model=DocumentOut)
+async def set_document_standards(
+    doc_id: str,
+    body: DocumentStandardsIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """Эпик B5: задать дефолтные стандарты требований/диаграмм для документа —
+    последующие generate-urs/srs/diagrams без явного ?standard= будут их использовать."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    if body.default_requirements_standard is not None:
+        doc.default_requirements_standard = body.default_requirements_standard
+    if body.default_diagram_standard is not None:
+        doc.default_diagram_standard = body.default_diagram_standard
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@router.get("/{doc_id}/requirements-documents", response_model=List[RequirementsDocumentOut])
+async def list_requirements_documents(doc_id: str, db: AsyncSession = Depends(get_db)):
+    """История сгенерированных URS/SRS — можно сравнить один и тот же документ,
+    сгенерированный по разным стандартам (напр. ГОСТ 34 vs ISO/IEC/IEEE 29148)."""
+    result = await db.execute(
+        select(RequirementsDocument)
+        .where(RequirementsDocument.document_id == doc_id)
+        .order_by(desc(RequirementsDocument.created_at))
+    )
+    return result.scalars().all()
 
 
 @router.post("/{doc_id}/generate-adr", response_model=ADRRecordOut)
@@ -429,6 +592,7 @@ async def design_api(
 async def generate_diagrams(
     doc_id: str,
     project_name: Optional[str] = None,
+    standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Document).where(Document.id == doc_id))
@@ -436,12 +600,18 @@ async def generate_diagrams(
     if not doc:
         raise HTTPException(404, "Document not found")
 
+    # Эпик B5: явный параметр > дефолт документа > дефолт системы (C4)
+    standard_profile = standard or doc.default_diagram_standard or "C4_MODEL"
     ctx = await _build_project_context(db, project_name or doc.project_name)
 
     async def _run():
-        return await diagram_engine.generate_all_diagrams(doc.text, doc.title, ctx)
+        return await diagram_engine.generate_all_diagrams(doc.text, doc.title, ctx, standard=standard_profile)
 
-    schema = await with_audit(db, "generate_diagrams", {"document_id": doc_id, "project_name": project_name}, _run)
+    schema = await with_audit(
+        db, "generate_diagrams",
+        {"document_id": doc_id, "project_name": project_name, "standard": standard_profile},
+        _run,
+    )
 
     # Store each diagram type
     diagram_map = {
@@ -454,23 +624,35 @@ async def generate_diagrams(
         "erd": ("plantuml", schema.erd),
         "flowchart": ("mermaid", schema.mermaid_flowchart),
     }
+    for i, vp in enumerate(schema.viewpoints or []):
+        if vp.diagram_code:
+            diagram_map[f"viewpoint_{i}_{vp.name or i}"] = ("plantuml", vp.diagram_code)
 
     created = []
     for dtype, (notation, code) in diagram_map.items():
-        if code:
-            artifact = DiagramArtifact(
-                id=str(uuid.uuid4()),
-                created_at=datetime.utcnow(),
-                document_id=doc_id,
-                diagram_type=dtype,
-                notation=notation,
-                source_code=code,
-            )
-            db.add(artifact)
-            created.append({"type": dtype, "notation": notation})
+        if not code:
+            continue
+        artifact = DiagramArtifact(
+            id=str(uuid.uuid4()),
+            created_at=datetime.utcnow(),
+            document_id=doc_id,
+            diagram_type=dtype,
+            notation=notation,
+            source_code=code,
+            standard_profile=standard_profile,
+        )
+        # Эпик A2: рендерим локально сразу при генерации, а не только по запросу фронтенда
+        render = await diagram_engine.render_diagram(code, notation)
+        artifact.render_svg = render["render_svg"]
+        artifact.render_png = render["render_png"]
+        artifact.render_status = render["render_status"]
+        artifact.render_error = render["render_error"]
+        artifact.rendered_at = datetime.utcnow() if render["render_status"] == "ok" else None
+        db.add(artifact)
+        created.append({"type": dtype, "notation": notation, "render_status": render["render_status"]})
 
     await db.commit()
-    return {"created": created, "needs_review": schema.needs_review}
+    return {"created": created, "needs_review": schema.needs_review, "standard_profile": standard_profile}
 
 
 @router.get("/{doc_id}/export/docx")
@@ -492,4 +674,36 @@ async def export_docx(doc_id: str, db: AsyncSession = Depends(get_db)):
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename={doc.title[:30]}.docx"},
+    )
+
+
+@router.get("/{doc_id}/export/full-package/docx")
+async def export_full_package_docx(doc_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Эпик A4: единый DOCX — рецензия + все диаграммы (картинками, не кодом) + отметка
+    применённого стандарта. Диаграммы без успешного локального рендера (render_status != "ok")
+    попадают в документ как код с явной пометкой "рендер недоступен".
+    """
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+
+    rev_result = await db.execute(
+        select(Review).where(Review.document_id == doc_id).order_by(desc(Review.created_at)).limit(1)
+    )
+    review = rev_result.scalar_one_or_none()
+    content = json.loads(review.review_json) if review else {"text": doc.text}
+    content["standard_profile"] = (review.standard_profile if review else None) or doc.default_requirements_standard
+
+    diag_result = await db.execute(
+        select(DiagramArtifact).where(DiagramArtifact.document_id == doc_id).order_by(DiagramArtifact.diagram_type)
+    )
+    diagrams = diag_result.scalars().all()
+
+    docx_bytes = export_service.export_document_docx(doc.title, content, diagrams=diagrams)
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={doc.title[:30]}_full.docx"},
     )
