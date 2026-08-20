@@ -1,0 +1,143 @@
+{
+  "docs": {
+    "crm": {
+      "full_id": "efd4c750-7628-4224-a0ba-37d309515f2c",
+      "raw_id": "0d7efa4f-9d4f-4bf6-ab5e-e5ebdda0b28e"
+    },
+    "trading": {
+      "full_id": "dde54652-2eb8-490b-b8d8-8ce1f15a2d4b",
+      "raw_id": "06fce4f2-a27c-44f8-8b58-d4afca34a207"
+    },
+    "insurance": {
+      "full_id": "bf959592-adf6-48c9-bca1-435b7c3ec35f",
+      "raw_id": "16ba92db-8684-46d5-b9bc-3fa1e24a6619"
+    }
+  },
+  "kb_docs": {
+    "crm": [
+      "eb5b3419-7149-47f3-b49d-37d01fe64b96",
+      "3ced0d9e-31d1-4b78-b8e6-85f9a6fa4656",
+      "ba1a4650-3b89-44be-9355-ee5bebc0cc74"
+    ],
+    "trading": [
+      "0fe6d609-f5b2-4507-9b0c-1c27fb04c99f",
+      "3320d688-c094-4869-9031-dc9030f73abe",
+      "632bca6c-39f1-42c5-b524-2c31f944d93a"
+    ],
+    "insurance": [
+      "ddbaf338-069d-4996-b637-2b1feb53263c",
+      "559aa4c3-4930-449d-b7ba-d00cf44dfa99",
+      "d3cf2f65-542d-40d0-9307-030b7d7bf3ee"
+    ]
+  },
+  "reviews": {
+    "crm_full": {
+      "id": "8c3c2438-239a-4a25-8fe3-9ebeaf364d47",
+      "needs_review": false,
+      "confidence": "medium"
+    },
+    "crm_raw": {
+      "id": "56a4a74c-7bfe-40f1-b564-e85f8a650c7e",
+      "needs_review": true,
+      "confidence": "low"
+    },
+    "trading_full": {
+      "id": "8bc3aff8-918a-4354-bcaf-13b7f45af40f",
+      "needs_review": true,
+      "confidence": "medium"
+    },
+    "trading_raw": {
+      "id": "6cd554ef-4cce-4269-b70c-5fea55e9658d",
+      "needs_review": true,
+      "confidence": "low"
+    },
+    "insurance_full": {
+      "id": "b8885be8-8362-451b-bfa0-7fcaaa16be78",
+      "needs_review": true,
+      "confidence": "medium"
+    },
+    "insurance_raw": {
+      "id": "d78b9555-20a9-4823-9453-0e67094a8d17",
+      "needs_review": true,
+      "confidence": "low"
+    }
+  },
+  "batch": {
+    "id": "d5c6dbd3-fa0e-46c3-b5c1-9d2d6eb156de",
+    "status": "completed",
+    "total": 6,
+    "completed": 6,
+    "needs_review": 5,
+    "errors": 0
+  },
+  "kb_answers": [
+    {
+      "question": "Что делать, если аналитик оценил проект, а клиент изменил требования?",
+      "answer": "Не редактировать существующую оценку задним числом. Нужно создать новую версию КП внутри той же карточки лида — история версий сохраняется, старая оценка остаётся видна.",
+      "sources": 1,
+      "confidence": "high",
+      "needs_review": false
+    },
+    {
+      "question": "Как формируется себестоимость проекта по часам разработчиков?",
+      "answer": "Себестоимость проекта формируется суммой (отработанные часы × внутренняя ставка сотрудника) по всем участникам команды за весь период проекта.",
+      "sources": 1,
+      "confidence": "high",
+      "needs_review": false
+    }
+  ],
+  "lessons": [
+    {
+      "id": "f130e5bd-919e-4c7e-b9c2-cf0393477008",
+      "title": "Недооценили интеграцию с Jira для учёта часов",
+      "source": "manual"
+    },
+    {
+      "id": "220fe94c-6d24-4391-9c19-0aff55c9437b",
+      "title": "Чек-лист передачи лида в проект снял путаницу с командой",
+      "source": "manual"
+    }
+  ],
+  "econ": {
+    "project_id": "9db927a7-ed02-4d25-8240-60233d23e361",
+    "task_estimate_id": "a0d6f9da-3908-4091-a32f-174e16cc7b36",
+    "total_hours": 411.6,
+    "confidence": "high",
+    "economic_id": "24eb4559-4377-4aa2-8ad4-10f16c5b0db1",
+    "capex": 967000.0,
+    "opex_monthly": 25000.0,
+    "roi_12m_pct": -131.0,
+    "llm_cost_source": "actual_usage"
+  },
+  "arch": {
+    "srs": {
+      "needs_review": false,
+      "confidence": "high",
+      "freq": 20
+    },
+    "urs": {
+      "needs_review": false,
+      "confidence": "medium",
+      "ureq": 20
+    },
+    "adr": {
+      "title": "ADR-001: Реализация единой CRM для управления заказами"
+    },
+    "diagrams": {
+      "count": 8,
+      "rendered_ok": 0,
+      "standard": "UML"
+    },
+    "coverage": {
+      "has_requirements": true,
+      "has_diagrams": true,
+      "has_acceptance_criteria": true,
+      "is_fully_covered": true,
+      "req_source": "urs",
+      "diagrams_count": 8
+    }
+  },
+  "audit": {
+    "runs": 22
+  }
+}
