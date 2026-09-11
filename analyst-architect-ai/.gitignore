@@ -19,9 +19,6 @@ data/
 *.db
 *.sqlite
 
-# Runtime
-*.log
-
 # Node
 node_modules/
 frontend/build/
@@ -36,4 +33,3 @@ frontend/.next/
 # OS
 .DS_Store
 Thumbs.db
-.aider*
