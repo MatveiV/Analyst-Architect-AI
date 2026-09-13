@@ -7,23 +7,43 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.kb_document import KBDocument
 from app.models.qa_run import QARun
-from app.schemas import DocumentCreate, DocumentOut, KBQuestionRequest, QARunOut, DirectAnswerRequest
+from app.schemas import KBDocumentCreate, KBDocumentOut, KBQuestionRequest, QARunOut, DirectAnswerRequest
 from app.services import rag_engine
 from app.services.audit_service import with_audit
 
 router = APIRouter(prefix="/kb", tags=["knowledge-base"])
+# Топ-уровневый роутер для «чистой» ИИ-операции Варианта 5: пост `POST /ai/answer_with_sources`
+# (по требованию Option5 §4 / fix-prompt §3, группа B). Роут `/kb/ai/answer_with_sources` оставлен
+# для обратной совместимости — оба вызывают один и тот же хелпер.
+ai_router = APIRouter(tags=["ai"])
 
 
-@router.post("/documents", response_model=DocumentOut)
-async def add_kb_document(body: DocumentCreate, db: AsyncSession = Depends(get_db)):
-    doc = Document(
+async def _answer_with_sources_impl(body: DirectAnswerRequest, db: AsyncSession):
+    """Общая логика чистой ИИ-операции Варианта 5 (строгий JSON)."""
+    if body.context:
+        # Create mock snippets from context
+        from app.models.kb_snippet import KBSnippet
+        mock_snippet = KBSnippet(
+            id="mock",
+            document_id="mock",
+            snippet_text=body.context,
+            embedding=None,
+        )
+        return await rag_engine.answer_with_sources(body.question, [(mock_snippet, 1.0)])
+    else:
+        snippets = await rag_engine.retrieve_snippets(db, body.question)
+        return await rag_engine.answer_with_sources(body.question, snippets)
+
+
+@router.post("/documents", response_model=KBDocumentOut)
+async def add_kb_document(body: KBDocumentCreate, db: AsyncSession = Depends(get_db)):
+    doc = KBDocument(
         id=str(uuid.uuid4()),
         created_at=datetime.utcnow(),
         title=body.title,
         text=body.text,
-        doc_type="kb_article",
         project_name=body.project_name,
     )
     db.add(doc)
@@ -35,9 +55,9 @@ async def add_kb_document(body: DocumentCreate, db: AsyncSession = Depends(get_d
     return doc
 
 
-@router.get("/documents", response_model=List[DocumentOut])
+@router.get("/documents", response_model=List[KBDocumentOut])
 async def list_kb_documents(db: AsyncSession = Depends(get_db)):
-    q = select(Document).where(Document.doc_type == "kb_article").order_by(desc(Document.created_at))
+    q = select(KBDocument).order_by(desc(KBDocument.created_at))
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -51,7 +71,7 @@ async def ask_knowledge_base(body: KBQuestionRequest, db: AsyncSession = Depends
         doc_ids = list({s.document_id for s, _ in snippets})
         doc_map = {}
         if doc_ids:
-            docs_q = await db.execute(select(Document).where(Document.id.in_(doc_ids)))
+            docs_q = await db.execute(select(KBDocument).where(KBDocument.id.in_(doc_ids)))
             for d in docs_q.scalars().all():
                 doc_map[d.id] = d.title
 
@@ -96,7 +116,7 @@ async def get_qa_history(
 @router.post("/reindex")
 async def reindex_kb(db: AsyncSession = Depends(get_db)):
     """Re-index all KB documents."""
-    q = select(Document).where(Document.doc_type == "kb_article")
+    q = select(KBDocument)
     result = await db.execute(q)
     docs = result.scalars().all()
 
@@ -115,21 +135,20 @@ async def reindex_kb(db: AsyncSession = Depends(get_db)):
 
 @router.post("/ai/answer_with_sources")
 async def direct_answer(body: DirectAnswerRequest, db: AsyncSession = Depends(get_db)):
-    """Direct AI call for testing."""
+    """Direct AI call for testing (Вариант 5, строгий JSON). /kb/ai/answer_with_sources"""
     async def _run():
-        if body.context:
-            # Create mock snippets from context
-            from app.models.snippet import Snippet
-            mock_snippet = Snippet(
-                id="mock",
-                document_id="mock",
-                snippet_text=body.context,
-                embedding=None,
-            )
-            return await rag_engine.answer_with_sources(body.question, [(mock_snippet, 1.0)])
-        else:
-            snippets = await rag_engine.retrieve_snippets(db, body.question)
-            return await rag_engine.answer_with_sources(body.question, snippets)
+        return await _answer_with_sources_impl(body, db)
+
+    schema = await with_audit(db, "direct_answer", {"question": body.question}, _run)
+    return schema.model_dump()
+
+
+# Топ-уровневый алиас по требованию Option5 §4 / fix-prompt §3 (группа B): `POST /ai/answer_with_sources`
+@ai_router.post("/ai/answer_with_sources")
+async def direct_answer_top_level(body: DirectAnswerRequest, db: AsyncSession = Depends(get_db)):
+    """Direct AI call for testing at top level: POST /ai/answer_with_sources"""
+    async def _run():
+        return await _answer_with_sources_impl(body, db)
 
     schema = await with_audit(db, "direct_answer", {"question": body.question}, _run)
     return schema.model_dump()

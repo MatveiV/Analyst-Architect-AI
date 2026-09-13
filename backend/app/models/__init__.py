@@ -1,5 +1,6 @@
-from app.models.document import Document
-from app.models.snippet import Snippet
+from app.models.spec_document import SpecDocument
+from app.models.kb_document import KBDocument
+from app.models.kb_snippet import KBSnippet
 from app.models.review import Review
 from app.models.qa_run import QARun
 from app.models.audit_run import AuditRun
@@ -24,7 +25,8 @@ from app.models.batch_review import BatchReview
 from app.models.batch_review_item import BatchReviewItem
 
 __all__ = [
-    "Document", "Snippet", "Review", "QARun", "AuditRun",
+    "SpecDocument", "KBDocument", "KBSnippet",
+    "Review", "QARun", "AuditRun",
     "MemoryItem", "Decision", "RiskCatalogItem", "ProjectLesson",
     "ArchitectureReview", "APISpec", "ADRRecord", "DiagramArtifact", "DiagramVersion",
     "DocumentationStandard", "RequirementsDocument",

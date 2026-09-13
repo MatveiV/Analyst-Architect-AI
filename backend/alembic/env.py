@@ -16,7 +16,7 @@ if config.config_file_name is not None:
 # Import all models so autogenerate sees every table
 from app.database import Base  # noqa: E402
 from app.models import (  # noqa: E402, F401
-    document, review, snippet, qa_run, audit_run,
+    spec_document, kb_document, kb_snippet, review, qa_run, audit_run,
     memory_item, decision, risk_catalog, project_lesson,
     architecture_review, api_spec, adr_record, diagram_artifact, diagram_version,
     documentation_standard, requirements_document,

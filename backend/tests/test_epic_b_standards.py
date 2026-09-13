@@ -54,6 +54,7 @@ class TestStandardSectionMap:
         assert "Общие сведения" in system
 
 
+@pytest.mark.llm_fail
 @pytest.mark.asyncio
 async def test_generate_urs_fallback_preserves_standard_profile():
     """Нет LLM-ключа в тестовом окружении => детерминированный safe-fallback путь;
@@ -65,6 +66,7 @@ async def test_generate_urs_fallback_preserves_standard_profile():
     assert schema.confidence == "low"
 
 
+@pytest.mark.llm_fail
 @pytest.mark.asyncio
 async def test_generate_srs_fallback_preserves_standard_profile():
     schema = await doc_generator.generate_srs("Нужна система учёта заявок.", title="T", standard="IEEE_830")
@@ -94,6 +96,7 @@ async def test_document_standards_patch_roundtrip(client, auth_headers):
     assert body["default_diagram_standard"] == "UML_ISO_19505"
 
 
+@pytest.mark.llm_fail
 @pytest.mark.asyncio
 async def test_generate_urs_persists_requirements_document_and_uses_document_default(client, auth_headers):
     doc_resp = await client.post("/documents", headers=auth_headers, json={
@@ -130,7 +133,7 @@ async def test_generate_urs_persists_requirements_document_and_uses_document_def
     content = json.loads(single_resp.json()["content_json"])
     assert content["standard_profile"] == "GOST_19"
 
-
+@pytest.mark.llm_fail
 @pytest.mark.asyncio
 async def test_generate_urs_explicit_standard_overrides_document_default(client, auth_headers):
     """Явный ?standard= в запросе должен иметь приоритет над дефолтом документа (Эпик B5)."""

@@ -38,6 +38,7 @@ class TestTokenCaptureInLlmClient:
         assert meta["output_tokens"] == 200
         assert meta["estimated_cost_usd"] > 0
 
+    @pytest.mark.llm_internal
     def test_call_llm_resets_tokens_before_dispatch(self, monkeypatch):
         """Токены — метаданные ПОСЛЕДНЕГО запуска, не накопительный счётчик; при новом
         вызове должны сброситься в 0 до того, как станет известен реальный расход."""
@@ -56,7 +57,10 @@ class TestTokenCaptureInLlmClient:
         monkeypatch.setattr(llm_client, "_call_ollama", _raise)
 
         with pytest.raises(ConnectionError):
-            asyncio.get_event_loop().run_until_complete(llm_client.call_llm("p", "s"))
+            # asyncio.run() вместо get_event_loop().run_until_complete():
+            # в Python 3.12+ (особенно 3.14) неявное создание event loop в
+            # главном потоке удалено — get_event_loop() бросает RuntimeError.
+            asyncio.run(llm_client.call_llm("p", "s"))
 
         meta = llm_client.get_last_call_meta()
         assert meta["input_tokens"] == 0

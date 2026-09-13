@@ -10,7 +10,7 @@ class DiagramArtifact(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("spec_documents.id"), nullable=False)
     diagram_type: Mapped[str] = mapped_column(String(50), nullable=False)
     notation: Mapped[str] = mapped_column(String(20), nullable=False)  # plantuml | mermaid
     source_code: Mapped[str] = mapped_column(Text, nullable=False)
@@ -26,6 +26,6 @@ class DiagramArtifact(Base):
     # ── Эпик B: мультистандартность ──────────────────────────────────────────
     standard_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
-    document = relationship("Document", back_populates="diagram_artifacts")
+    document = relationship("SpecDocument", back_populates="diagram_artifacts")
     versions = relationship("DiagramVersion", back_populates="diagram_artifact",
                              cascade="all, delete-orphan", order_by="DiagramVersion.version_number")

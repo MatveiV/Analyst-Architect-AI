@@ -8,7 +8,7 @@ from sqlalchemy import select, desc, func
 from app.database import get_db
 from app.models.diagram_artifact import DiagramArtifact
 from app.models.diagram_version import DiagramVersion
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
 from app.schemas import DiagramArtifactOut, DiagramUpdateIn, DiagramVersionOut
 from app.services import diagram_engine
 from app.services.audit_service import with_audit
@@ -152,7 +152,7 @@ async def generate_c4(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -170,7 +170,7 @@ async def generate_c4(
 
 @router.post("/generate-uml")
 async def generate_uml(doc_id: str, standard: str = "UML_ISO_19505", db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -188,7 +188,7 @@ async def generate_uml(doc_id: str, standard: str = "UML_ISO_19505", db: AsyncSe
 
 @router.post("/generate-erd")
 async def generate_erd(doc_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")

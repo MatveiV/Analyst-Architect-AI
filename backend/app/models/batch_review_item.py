@@ -12,7 +12,7 @@ class BatchReviewItem(Base):
     batch_id: Mapped[str] = mapped_column(String(36), ForeignKey("batch_reviews.id"), nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
-    document_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("documents.id"), nullable=True)
+    document_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("spec_documents.id"), nullable=True)
     review_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("reviews.id"), nullable=True)
     # pending | ok | error
     status: Mapped[str] = mapped_column(String(20), default="pending")

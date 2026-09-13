@@ -5,15 +5,22 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 # ─── Documents ───────────────────────────────────────────────────────────────
+# После миграции 0007 физически разделены на:
+#   - SpecDocument  (Вариант 2: рецензируемые ТЗ/BRD/...)
+#   - KBDocument    (Вариант 5: статьи базы знаний для RAG)
+# Алиасы DocumentCreate/DocumentOut сохранены для совместимости со старым
+# импортом в роутах/фронте; `status: "ok"` в DocumentOut — облегчённый
+# ответ согласно Option2 §1.
 
-class DocumentCreate(BaseModel):
+class SpecDocumentCreate(BaseModel):
+    """Тело POST /documents (Вариант 2)."""
     title: str = Field(min_length=1, max_length=500)
     text: str = Field(min_length=10, max_length=30_000)
-    doc_type: str = Field(default="tz")
+    doc_type: str = Field(default="tz", pattern="^(tz|brd|user_story|srs|markdown)$")
     project_name: Optional[str] = None
 
 
-class DocumentOut(BaseModel):
+class SpecDocumentOut(BaseModel):
     id: str
     created_at: datetime
     title: str
@@ -22,8 +29,46 @@ class DocumentOut(BaseModel):
     project_name: Optional[str] = None
     default_requirements_standard: Optional[str] = None
     default_diagram_standard: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Алиасы для обратной совместимости со старым импортом `DocumentCreate`/`DocumentOut`.
+class DocumentCreate(SpecDocumentCreate):
+    pass
+
+
+class DocumentOut(SpecDocumentOut):
+    status: str = "ok"
+
+
+class KBDocumentCreate(BaseModel):
+    """Тело POST /kb/documents (Вариант 5)."""
+    title: str = Field(min_length=1, max_length=500)
+    text: str = Field(min_length=10, max_length=30_000)
+    project_name: Optional[str] = None
+    # Принимается для обратной совместимости со старым контрактом (одна таблица
+    # documents с doc_type='kb_article'); в KBDocument физически не хранится.
+    doc_type: str = "kb_article"
+
+
+class KBDocumentOut(BaseModel):
+    id: str
+    created_at: datetime
+    title: str
+    text: str
+    project_name: Optional[str] = None
     source_type: Optional[str] = None
     source_id: Optional[str] = None
+    # Константа для совместимости со старым DocumentOut-контрактом.
+    doc_type: str = "kb_article"
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KBSnippetOut(BaseModel):
+    id: str
+    created_at: datetime
+    document_id: str
+    snippet_text: str
     model_config = ConfigDict(from_attributes=True)
 
 

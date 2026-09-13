@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
+from app.models.kb_document import KBDocument
 from app.models.risk_catalog import RiskCatalogItem as RiskCatalog
 from app.models.project_lesson import ProjectLesson
 from app.models.memory_item import MemoryItem
@@ -38,7 +39,7 @@ async def seed_documents(db: AsyncSession = Depends(get_db)):
             if not line:
                 continue
             spec = json.loads(line)
-            doc = Document(
+            doc = SpecDocument(
                 id=str(uuid.uuid4()),
                 created_at=datetime.utcnow(),
                 title=spec["title"],
@@ -65,12 +66,11 @@ async def seed_kb_documents(db: AsyncSession = Depends(get_db)):
             if not line:
                 continue
             item = json.loads(line)
-            doc = Document(
+            doc = KBDocument(
                 id=str(uuid.uuid4()),
                 created_at=datetime.utcnow(),
                 title=item["title"],
                 text=item["text"],
-                doc_type="kb_article",
             )
             db.add(doc)
             await db.flush()
@@ -86,16 +86,14 @@ async def seed_all_examples(db: AsyncSession = Depends(get_db)):
     results = {}
 
     # 1. Documents (if not already seeded)
-    existing = (await db.execute(select(Document).limit(1))).scalar_one_or_none()
+    existing = (await db.execute(select(SpecDocument).limit(1))).scalar_one_or_none()
     if not existing:
         results["documents"] = await seed_documents(db)
     else:
         results["documents"] = {"loaded": 0, "skipped": "already seeded"}
 
     # 2. KB documents
-    existing_kb = (await db.execute(
-        select(Document).where(Document.doc_type == "kb_article").limit(1)
-    )).scalar_one_or_none()
+    existing_kb = (await db.execute(select(KBDocument).limit(1))).scalar_one_or_none()
     if not existing_kb:
         results["kb_documents"] = await seed_kb_documents(db)
     else:

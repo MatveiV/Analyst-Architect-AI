@@ -10,9 +10,9 @@ class ADRRecord(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("spec_documents.id"), nullable=False)
     adr_json: Mapped[str] = mapped_column(Text, nullable=False)
 
     standard_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
-    document = relationship("Document", back_populates="adr_records")
+    document = relationship("SpecDocument", back_populates="adr_records")

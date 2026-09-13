@@ -17,8 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.config import settings
-from app.models.snippet import Snippet
-from app.models.document import Document
+from app.models.kb_snippet import KBSnippet as Snippet
 from app.schemas import AnswerWithSourcesSchema, SourceItem
 from app.services.llm_client import call_llm, extract_json
 from app.services.embeddings import (

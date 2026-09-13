@@ -49,6 +49,7 @@ class TestOllamaConfig:
 # ─── C1: call_llm() не требует api_key для ollama, требует для остальных ─────
 
 class TestCallLlmKeyBypass:
+    @pytest.mark.llm_internal
     @pytest.mark.asyncio
     async def test_missing_key_raises_for_cloud_provider(self, monkeypatch):
         async def _fake_cfg():
@@ -58,6 +59,7 @@ class TestCallLlmKeyBypass:
         with pytest.raises(RuntimeError, match="API-ключ"):
             await llm_client.call_llm("prompt", "system")
 
+    @pytest.mark.llm_internal
     @pytest.mark.asyncio
     async def test_missing_key_does_not_raise_for_ollama(self, monkeypatch):
         async def _fake_cfg():
@@ -73,6 +75,7 @@ class TestCallLlmKeyBypass:
         result = await llm_client.call_llm("prompt", "system")
         assert result == '{"ok": true}'
 
+    @pytest.mark.llm_internal
     @pytest.mark.asyncio
     async def test_call_llm_records_last_call_meta_before_dispatch(self, monkeypatch):
         """Эпик C3: метаданные должны фиксироваться ДО самого вызова, чтобы audit_service
@@ -97,6 +100,7 @@ class TestCallLlmKeyBypass:
 # ─── C1: forced JSON decoding + retry для Ollama ──────────────────────────────
 
 class TestOllamaForceJsonAndRetry:
+    @pytest.mark.llm_internal
     @pytest.mark.asyncio
     async def test_call_openai_compat_passes_format_json_when_forced(self, monkeypatch):
         captured_kwargs = {}
@@ -111,7 +115,7 @@ class TestOllamaForceJsonAndRetry:
             choices = [_FakeChoice()]
 
         class _FakeCompletions:
-            def create(self, **kwargs):
+            async def create(self, **kwargs):
                 captured_kwargs.update(kwargs)
                 return _FakeResponse()
 
@@ -120,8 +124,11 @@ class TestOllamaForceJsonAndRetry:
 
         class _FakeClient:
             chat = _FakeChat()
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): pass
+            async def close(self): pass
 
-        monkeypatch.setattr("openai.OpenAI", lambda **kw: _FakeClient())
+        monkeypatch.setattr("openai.AsyncOpenAI", lambda **kw: _FakeClient())
 
         cfg = {"provider": "ollama", "api_key": "ollama", "model": "qwen2.5:14b-instruct",
                "base_url": "http://ollama:11434/v1", "temperature": 0.2, "max_tokens": 100, "route": ""}
@@ -130,6 +137,7 @@ class TestOllamaForceJsonAndRetry:
         assert result == '{"result": "ok"}'
         assert captured_kwargs.get("extra_body") == {"format": "json"}
 
+    @pytest.mark.llm_internal
     @pytest.mark.asyncio
     async def test_call_openai_compat_omits_format_json_when_not_forced(self, monkeypatch):
         captured_kwargs = {}
@@ -144,7 +152,7 @@ class TestOllamaForceJsonAndRetry:
             choices = [_FakeChoice()]
 
         class _FakeCompletions:
-            def create(self, **kwargs):
+            async def create(self, **kwargs):
                 captured_kwargs.update(kwargs)
                 return _FakeResponse()
 
@@ -154,7 +162,13 @@ class TestOllamaForceJsonAndRetry:
         class _FakeClient:
             chat = _FakeChat()
 
-        monkeypatch.setattr("openai.OpenAI", lambda **kw: _FakeClient())
+        async def _enter(self): return self
+        async def _exit(self, *a): pass
+        _FakeClient.__aenter__ = _enter
+        _FakeClient.__aexit__ = _exit
+        _FakeClient.close = lambda self: None
+
+        monkeypatch.setattr("openai.AsyncOpenAI", lambda **kw: _FakeClient())
 
         cfg = {"provider": "openai", "api_key": "sk-test", "model": "gpt-4o",
                "base_url": "", "temperature": 0.2, "max_tokens": 100, "route": ""}

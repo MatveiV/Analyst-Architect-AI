@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
 from app.models.build_project import BuildProject
 from app.models.task_estimate import TaskEstimate
 from app.models.economic_estimate import EconomicEstimate
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/build-projects", tags=["economics"])
 
 @router.post("", response_model=BuildProjectOut)
 async def create_build_project(body: BuildProjectCreate, db: AsyncSession = Depends(get_db)):
-    doc_res = await db.execute(select(Document).where(Document.id == body.document_id))
+    doc_res = await db.execute(select(SpecDocument).where(SpecDocument.id == body.document_id))
     if not doc_res.scalar_one_or_none():
         raise HTTPException(404, "Source document not found")
 
@@ -78,7 +78,7 @@ async def estimate_project_tasks(project_id: str, db: AsyncSession = Depends(get
     if not project:
         raise HTTPException(404, "Build project not found")
 
-    doc_res = await db.execute(select(Document).where(Document.id == project.document_id))
+    doc_res = await db.execute(select(SpecDocument).where(SpecDocument.id == project.document_id))
     document = doc_res.scalar_one_or_none()
     if not document:
         raise HTTPException(404, "Source document not found")

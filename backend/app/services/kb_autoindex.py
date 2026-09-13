@@ -3,12 +3,12 @@ KB Auto-index — Фаза 3: сгенерированные артефакты 
 (ProjectLesson) автоматически попадают в базу знаний команды, чтобы следующий цикл
 рецензии/генерации диаграмм мог опираться на "как делали в прошлый раз" через /kb/ask.
 
-Механизм: создаём Document с doc_type="kb_article" (тот же тип, что и обычные KB-статьи —
-он уже виден в разделе "Документы" веб-панели и уже участвует в reindex), индексируем его
-через rag_engine.index_document() (те же Snippet-и, тот же гибридный поиск). Ничего нового
+Механизм: создаём KBDocument (таблица kb_documents, Вариант 5 — та же сущность, что и обычные
+KB-статьи, уже видна в разделе "Документы" веб-панели и участвует в reindex), индексируем его
+через rag_engine.index_document() (те же KBSnippet-и, тот же гибридный поиск). Ничего нового
 изобретать не пришлось — только правильно дёрнуть уже существующий механизм в новых точках.
 
-source_type/source_id на Document — provenance: откуда взялась статья (не теряем связь
+source_type/source_id на KBDocument — provenance: откуда взялась статья (не теряем связь
 с оригинальным URS/SRS/ADR/набором диаграмм).
 
 Побочный эффект намеренно НЕ должен ронять основной запрос (генерацию URS и т.п.) — обёрнуто
@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document
+from app.models.kb_document import KBDocument
 from app.services import rag_engine
 
 logger = logging.getLogger(__name__)
@@ -36,18 +36,17 @@ async def autoindex_artifact(
     source_type: str,
     source_id: str,
     project_name: str | None = None,
-) -> Document | None:
-    """Создаёт kb_article Document из готового текста и индексирует его для RAG.
+) -> KBDocument | None:
+    """Создаёт KBDocument из готового текста и индексирует его для RAG.
     Возвращает None, если индексировать нечего (пустой текст) — не считается ошибкой."""
     if not text or not text.strip():
         return None
     try:
-        doc = Document(
+        doc = KBDocument(
             id=str(uuid.uuid4()),
             created_at=datetime.utcnow(),
             title=f"[Авто] {title}"[:500],
             text=text[:MAX_KB_TEXT_LEN],
-            doc_type="kb_article",
             project_name=project_name,
             source_type=source_type,
             source_id=source_id,

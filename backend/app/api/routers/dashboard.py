@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, Integer
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
+from app.models.kb_document import KBDocument
 from app.models.review import Review
 from app.models.audit_run import AuditRun
 from app.models.build_project import BuildProject
@@ -21,7 +22,9 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/stats")
 async def dashboard_stats(db: AsyncSession = Depends(get_db)):
-    total_docs = (await db.execute(select(func.count(Document.id)))).scalar() or 0
+    spec_docs = (await db.execute(select(func.count(SpecDocument.id)))).scalar() or 0
+    kb_docs = (await db.execute(select(func.count(KBDocument.id)))).scalar() or 0
+    total_docs = spec_docs + kb_docs
     total_reviews = (await db.execute(select(func.count(Review.id)))).scalar() or 0
     needs_review_count = (await db.execute(
         select(func.count(Review.id)).where(Review.needs_review == True)  # noqa: E712

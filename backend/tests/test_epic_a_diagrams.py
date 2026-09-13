@@ -77,6 +77,7 @@ class TestRenderDiagram:
 # ─── A2/B4: generate_all_diagrams — приближённые стандарты форсируют needs_review ──
 
 class TestGenerateAllDiagramsStandards:
+    @pytest.mark.llm_fail
     @pytest.mark.asyncio
     async def test_fallback_carries_standard_profile(self):
         """Даже на safe-fallback пути (нет LLM-ключа в тестовом окружении) standard_profile
@@ -87,6 +88,7 @@ class TestGenerateAllDiagramsStandards:
         assert schema.standard_profile == "UML_ISO_19505"
         assert schema.needs_review is True  # нет LLM-ключа в тестовом окружении => fallback
 
+    @pytest.mark.llm_fail
     @pytest.mark.asyncio
     async def test_approximate_standard_forces_low_confidence(self):
         """Эпик B4: ГОСТ 19.701 — приближённая генерация, needs_review должен быть True

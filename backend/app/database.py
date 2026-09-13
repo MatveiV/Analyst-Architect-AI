@@ -40,7 +40,7 @@ async def get_db():
 
 async def create_tables():
     """Ensure all tables exist. Prefers Alembic, falls back to sync create_all."""
-    from app.models import (document, review, snippet, qa_run, audit_run,
+    from app.models import (spec_document, kb_document, kb_snippet, review, qa_run, audit_run,
         memory_item, decision, risk_catalog, project_lesson,
         architecture_review, api_spec, adr_record, diagram_artifact, diagram_version,
         documentation_standard, requirements_document,

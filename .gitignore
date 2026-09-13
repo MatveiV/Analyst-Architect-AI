@@ -21,6 +21,9 @@ data/
 
 # Runtime
 *.log
+.vite/
+.pids/
+.zcode/
 
 # Node
 node_modules/

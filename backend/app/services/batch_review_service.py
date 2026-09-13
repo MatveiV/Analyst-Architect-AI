@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
 from app.models.review import Review
 from app.models.batch_review import BatchReview
 from app.models.batch_review_item import BatchReviewItem
@@ -32,7 +32,7 @@ async def create_and_process_batch(db: AsyncSession, body: BatchReviewCreate) ->
     error_count = 0
 
     for idx, item in enumerate(body.items):
-        doc = Document(
+        doc = SpecDocument(
             id=str(uuid.uuid4()),
             created_at=datetime.utcnow(),
             title=item.title,

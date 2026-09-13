@@ -17,7 +17,7 @@ class RequirementsDocument(Base):
     __tablename__ = "requirements_documents"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("spec_documents.id"), nullable=False)
     doc_kind: Mapped[str] = mapped_column(String(10), nullable=False)  # "urs" | "srs"
     standard_profile: Mapped[str] = mapped_column(String(30), nullable=False)
     content_json: Mapped[str] = mapped_column(Text, nullable=False)
@@ -25,4 +25,4 @@ class RequirementsDocument(Base):
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    document = relationship("Document", back_populates="requirements_documents")
+    document = relationship("SpecDocument", back_populates="requirements_documents")

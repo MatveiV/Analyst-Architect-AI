@@ -356,10 +356,78 @@ python -m pytest tests/ -v --asyncio-mode=auto
 | **Phase 1 / Epic C** — Ollama, ENFORCE_LOCAL_ONLY | epic_c_ollama |
 | **Phase 2** — batch-review (до 50 ТЗ), coverage-счётчики, review diff | phase2_* |
 | **Phase 3** — KB-autoindexing, usage↔economics (actual LLM cost) | phase3_* |
+| Выпускные варианты 2+5 — наличие обязательных эндпоинтов групп A/B, структура `tests_data` | graduation_requirements |
 | Экономический модуль (CAPEX/OPEX/ROI формулы + API) | economics |
-| **Итого** | **146** ✅ |
+| **Итого** | **153** ✅ |
 
-> 146/146 тестов проходят; TypeScript: 0 ошибок (`tsc --noEmit`); production-build фронтенда — чистый. Frontend E2E-тестов нет (в roadmap).
+> 153/153 тестов проходят; TypeScript: 0 ошибок (`tsc --noEmit`); production-build фронтенда — чистый. Frontend E2E-тестов нет (в roadmap).
+
+---
+
+## Выпускные варианты 2+5: API, тестовые данные, аудит
+
+Проект реализует одновременно **Вариант 2 (ИИ-рецензент ТЗ)** и **Вариант 5 (Система знаний команды)** как разделы одного продукта (общие БД и `audit_runs`).
+
+### База данных и аудит
+- **БД по умолчанию:** `backend/data/analyst_architect_ai.db` (SQLite). Задаётся `DATABASE_URL`.
+- **Посмотреть аудит:** `GET /audit` (все запуски) и `GET /audit/stats` (сводка). Каждый вызов групп A и B (включая `/ai/review` и `/ai/answer_with_sources`) пишет строку в `audit_runs` через `with_audit`.
+
+### Группа A — ИИ-рецензент (Вариант 2)
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/auth/login \
+  -d "username=analyst&password=analyst123" | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+
+# 1) Создать документ («сырьё» для рецензии)
+curl -X POST http://localhost:8000/documents -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Форма заявок","text":"Нужна форма заявки с полями имя, email, телефон, статусы и таблицей результатов администратора. Требуется авторизация."}'
+
+# 2) Запустить рецензию (DOC_ID — из ответа п.1, поле id) → создаст запись в reviews + audit_runs
+curl -X POST http://localhost:8000/documents/DOC_ID/review -H "Authorization: Bearer $TOKEN"
+
+# 3) Чистая ИИ-операция (строгий JSON: summary, risks[], questions_to_client[], confidence, needs_review)
+curl -X POST http://localhost:8000/ai/review -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"text":"Сделать сайт."}'
+```
+
+### Группа B — Система знаний (Вариант 5)
+```bash
+# 1) Добавить документ в базу знаний
+curl -X POST http://localhost:8000/kb/documents -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Правила команды","text":"Рабочие часы 10:00-19:00 МСК. Ответ в чате — в течение 2 рабочих часов. Код ревью обязателен."}'
+
+# 2) Вопрос → ответ с источниками (sources[]) или needs_review=true
+curl -X POST http://localhost:8000/kb/ask -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"question":"Какой SLA на ответы в команде?"}'
+
+# 3) Чистая ИИ-операция (строгий JSON: answer, sources[], confidence, needs_review)
+curl -X POST http://localhost:8000/ai/answer_with_sources -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"question":"Что такое ADR?","context":"ADR — запись об архитектурном решении."}'
+```
+
+### Как воспроизвести «ручную проверку» тестом
+Готовые входы лежат в `tests_data/` (10 ТЗ, 5 KB-документов, 10 вопросов). Быстро проверить ручную проверку без ключа провайдера — юнит/контрактными тестами:
+```bash
+cd backend
+python -m pytest tests/test_graduation_requirements.py -q          # наличие всех эндпоинтов обеих групп + структура данных
+python -m pytest tests/test_main.py::TestAIReviewerLogic -q        # TOO_VAGUE/CONTRADICTORY → needs_review=true
+```
+Реальные входы из `tests_data` прогоняются через `/seed/examples` (admin) + `/kb/ask`, результат фиксируется в `tests_data/RESULTS.md`.
+
+### Тестовые данные (`tests_data/`)
+#### ТЗ (Вариант 2) — `tests_data/specs/specs.jsonl`
+| № | Тема | expected `needs_review` | Почему | Что считается успехом |
+|---|---|---|---|---|
+| 1–6 | Нормальные мини-ТЗ (форма заявки, парсер цен, учёт оплат, кабинет, витрина, генератор PDF) | false | Есть функциональные/НФ-требования и критерии | ≥3 риска и ≥4-5 критериев приёмки |
+| 7 | «Сделать сайт» (1 предложение) | true | `TOO_VAGUE_INPUT` | 3+ вопроса заказчику, `confidence=low` |
+| 8 | «Прилож.» (1 слово) | true | вырожденный ввод | `needs_review=true`, `confidence=low` |
+| 9 | Авторизация/открытый доступ + сроки | true | `CONTRADICTORY_INPUT` | `needs_review=true`, риск `severity=high` |
+| 10 | Чат-бот: автономность vs модерация | true | `CONTRADICTORY_INPUT` | `needs_review=true`, риск `severity=high` |
+
+#### База знаний (Вариант 5)
+- `tests_data/kb_documents.jsonl` — 5 документов (правила команды, FAQ клиентов, шаблоны ответов, словарь терминов, процесс запуска задачи).
+- `tests_data/kb_questions.jsonl` — 10 вопросов: **7** с ответом в базе (`expected_needs_review=false`, есть источники) и **3** без ответа (`expected_needs_review=true` → «данных недостаточно»).
 
 ---
 
@@ -377,7 +445,7 @@ python -m pytest tests/ -v --asyncio-mode=auto
 
 ## Roadmap
 
-- **v1.0** — текущий релиз: FastAPI + 16 роутеров, 24 модели, 21 сервис, 146 pytest, React 18 + Vite, модуль экономики
+- **v1.0** — текущий релиз: FastAPI + 16 роутеров, 24 модели, 21 сервис, 153 pytest, React 18 + Vite, модуль экономики
 - **v1.1** — Alembic-миграции (6 шт., 0001–0006) ✅, batch-рецензия (Phase 2) ✅, webhook при `needs_review` — в работе
 - **v1.2** — Vite + Tailwind ✅, OpenRouter provider ✅, ENFORCE_LOCAL_ONLY ✅, Kroki-рендер ✅; shadcn/ui / TanStack Query — в работе
 - **v1.3** — Интеграция Economic Actuals с тайм-трекерами (Toggl/Harvest) для автосбора факта

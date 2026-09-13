@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.spec_document import SpecDocument
 from app.models.review import Review
 from app.models.architecture_review import ArchitectureReview
 from app.models.adr_record import ADRRecord
@@ -17,7 +17,8 @@ from app.models.api_spec import APISpec
 from app.models.diagram_artifact import DiagramArtifact
 from app.models.requirements_document import RequirementsDocument
 from app.schemas import (
-    DocumentCreate, DocumentOut, ReviewOut, ArchitectureReviewOut,
+    SpecDocumentCreate, SpecDocumentOut, DocumentCreate, DocumentOut,
+    ReviewOut, ArchitectureReviewOut,
     ADRRecordOut, APISpecOut, DiagramArtifactOut,
     RequirementsDocumentOut, DocumentStandardsIn,
     CoverageOut, CoverageRequirementItem,
@@ -50,10 +51,10 @@ async def get_document_coverage(doc_id: str, db: AsyncSession = Depends(get_db))
     "требование → элемент диаграммы" (см. оговорку в CoverageOut) — быстрый обзор,
     где явно не хватает диаграмм, критериев приёмки или самих требований.
     """
-    doc_result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc_result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = doc_result.scalar_one_or_none()
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "Spec document not found")
 
     # Последний URS, а если его нет — последний SRS
     req_result = await db.execute(
@@ -159,7 +160,15 @@ def _extract_diagrams_from_md(text: str):
 
 @router.post("", response_model=DocumentOut)
 async def create_document(body: DocumentCreate, db: AsyncSession = Depends(get_db)):
-    doc = Document(
+    # После миграции 0007 /documents работает только со spec-документами;
+    # попытка создать kb_article здесь — ошибка (есть отдельный /kb/documents).
+    if body.doc_type == "kb_article":
+        raise HTTPException(
+            400,
+            "doc_type=kb_article теперь живёт только в /kb/documents "
+            "(Вариант 5, база знаний команды). См. fix-prompt §3, §4."
+        )
+    doc = SpecDocument(
         id=str(uuid.uuid4()),
         created_at=datetime.utcnow(),
         title=body.title,
@@ -170,10 +179,6 @@ async def create_document(body: DocumentCreate, db: AsyncSession = Depends(get_d
     db.add(doc)
     await db.commit()
     await db.refresh(doc)
-
-    # Auto-index for RAG if doc_type is kb_article
-    if body.doc_type == "kb_article":
-        await rag_engine.index_document(db, doc.id, body.text)
 
     # Extract diagrams if markdown
     if body.doc_type == "markdown":
@@ -207,7 +212,7 @@ async def upload_markdown(
         text = raw.decode("cp1251")
 
     title = file.filename.replace(".md", "").replace(".markdown", "") if file.filename else "Untitled"
-    doc = Document(
+    doc = SpecDocument(
         id=str(uuid.uuid4()),
         created_at=datetime.utcnow(),
         title=title,
@@ -238,7 +243,7 @@ async def upload_markdown(
 @router.get("/{doc_id}/export/markdown")
 async def export_markdown(doc_id: str, db: AsyncSession = Depends(get_db)):
     """Export a consolidated final document as markdown with embedded diagrams."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -312,19 +317,21 @@ async def list_documents(
     doc_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Document).order_by(desc(Document.created_at))
+    # После 0007: /documents возвращает только spec-документы (Вариант 2).
+    # KB-статьи живут на /kb/documents.
+    q = select(SpecDocument).order_by(desc(SpecDocument.created_at))
     if doc_type:
-        q = q.where(Document.doc_type == doc_type)
+        q = q.where(SpecDocument.doc_type == doc_type)
     result = await db.execute(q)
     return result.scalars().all()
 
 
 @router.get("/{doc_id}", response_model=DocumentOut)
 async def get_document(doc_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(404, "Spec document not found")
     return doc
 
 
@@ -334,7 +341,7 @@ async def review_document(
     reasoning_mode: str = "direct",
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -386,7 +393,7 @@ async def generate_urs(
     standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -435,7 +442,7 @@ async def generate_srs(
     standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -482,7 +489,7 @@ async def set_document_standards(
 ):
     """Эпик B5: задать дефолтные стандарты требований/диаграмм для документа —
     последующие generate-urs/srs/diagrams без явного ?standard= будут их использовать."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -513,7 +520,7 @@ async def generate_adr(
     project_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -552,7 +559,7 @@ async def recommend_architecture(
     project_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -583,7 +590,7 @@ async def design_api(
     project_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -621,7 +628,7 @@ async def generate_diagrams(
     standard: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -692,7 +699,7 @@ async def generate_diagrams(
 
 @router.get("/{doc_id}/export/docx")
 async def export_docx(doc_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")
@@ -719,7 +726,7 @@ async def export_full_package_docx(doc_id: str, db: AsyncSession = Depends(get_d
     применённого стандарта. Диаграммы без успешного локального рендера (render_status != "ok")
     попадают в документ как код с явной пометкой "рендер недоступен".
     """
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+    result = await db.execute(select(SpecDocument).where(SpecDocument.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(404, "Document not found")

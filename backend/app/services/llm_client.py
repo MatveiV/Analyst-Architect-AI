@@ -169,10 +169,11 @@ async def _call_ollama(prompt: str, system: str, cfg: dict) -> str:
 
 
 async def _call_anthropic(prompt: str, system: str, cfg: dict) -> str:
+    """Асинхронный вызов Anthropic (НЕ блокирует event loop)."""
     import anthropic
-    client = anthropic.Anthropic(api_key=cfg["api_key"])
+    client = anthropic.AsyncAnthropic(api_key=cfg["api_key"], timeout=120)
     model = cfg["model"] or settings.LLM_MODEL_ANTHROPIC
-    response = client.messages.create(
+    response = await client.messages.create(
         model=model,
         max_tokens=cfg["max_tokens"],
         temperature=cfg["temperature"],
@@ -197,10 +198,12 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: b
     OpenRouter uses X-Route header to select routing mode.
     force_json=True (Ollama, Эпик C1) — включает constrained JSON decoding на стороне модели,
     что заметно повышает надёжность строгого JSON-контракта у более слабых локальных моделей.
-    """
-    from openai import OpenAI
 
-    client_kwargs: dict = {"api_key": cfg["api_key"]}
+    Использует AsyncOpenAI (НЕ блокирует event loop) с таймаутом 120с.
+    """
+    from openai import AsyncOpenAI
+
+    client_kwargs: dict = {"api_key": cfg["api_key"], "timeout": 120}
     if cfg.get("base_url"):
         client_kwargs["base_url"] = cfg["base_url"]
 
@@ -210,7 +213,6 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: b
     if default_headers:
         client_kwargs["default_headers"] = default_headers
 
-    client = OpenAI(**client_kwargs)
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -219,15 +221,16 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: b
     model = cfg["model"] or (settings.LLM_MODEL_OPENROUTER if cfg.get("provider") == "openrouter" else settings.LLM_MODEL_OPENAI)
     extra_kwargs: dict = {}
     if force_json:
-        # Ollama принимает OpenAI-совместимый response_format={"type": "json_object"}
         extra_kwargs["extra_body"] = {"format": "json"}
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=cfg["max_tokens"],
-        temperature=cfg["temperature"],
-        messages=messages,
-        **extra_kwargs,
-    )
+
+    async with AsyncOpenAI(**client_kwargs) as client:
+        response = await client.chat.completions.create(
+            model=model,
+            max_tokens=cfg["max_tokens"],
+            temperature=cfg["temperature"],
+            messages=messages,
+            **extra_kwargs,
+        )
     content = response.choices[0].message.content
     usage = getattr(response, "usage", None)
     if usage:
