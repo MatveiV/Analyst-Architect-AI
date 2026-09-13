@@ -184,6 +184,7 @@ curl -X POST "http://localhost:8000/settings/test?provider=anthropic" \
 ## 6. Database
 
 ```sql
+-- Users / RBAC
 CREATE TABLE users (
     id VARCHAR(36) PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
@@ -193,6 +194,18 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE,
     last_login DATETIME
 );
+
+-- Variant 2: reviewed specs (migration 0007_split_documents)
+CREATE TABLE spec_documents (...);  -- id, created_at, title, text, doc_type, project_name
+CREATE TABLE reviews (...);         -- review_json, needs_review, confidence, error (reason)
+
+-- Variant 5: team knowledge base
+CREATE TABLE kb_documents (...);    -- id, created_at, title, text, project_name, source_type, source_id
+CREATE TABLE kb_snippets (...);     -- RAG chunks (document_id -> kb_documents)
+CREATE TABLE qa_runs (...);         -- question, answer, sources_json, needs_review, error
+
+-- Shared audit of every operation in both variants
+CREATE TABLE audit_runs (...);      -- action, input, output, status, error, duration_ms
 ```
 
 ### Local Windows Launch (without Docker)
@@ -223,14 +236,14 @@ C:\GitHub\3A\frontend\run_vite.bat
 ### Backup
 
 ```bash
-cp data/analyst_guru.db backups/analyst_guru_$(date +%Y%m%d_%H%M%S).db
-sqlite3 data/analyst_guru.db "SELECT username, role, is_active FROM users;"
+cp data/analyst_architect_ai.db backups/analyst_architect_ai_$(date +%Y%m%d_%H%M%S).db
+sqlite3 data/analyst_architect_ai.db "SELECT username, role, is_active FROM users;"
 ```
 
 ### Switching to PostgreSQL
 
 ```env
-DATABASE_URL=postgresql+asyncpg://user:password@host:5432/analyst_guru
+DATABASE_URL=postgresql+asyncpg://user:password@host:5432/analyst_architect_ai
 ```
 
 ---
@@ -286,7 +299,7 @@ graph TB
         FastAPI["python:3.11-slim\nPort 8000\n15 routers · JWT+RBAC\nFAISS indices in-memory"]
         Kroki["yuzutech/kroki:0.25\nPort 8001\nLocal render\nPlantUML/Mermaid/GraphViz"]
         Ollama["ollama/ollama\nPort 11434\nlocal-llm profile\n(optional)"]
-        DB[("SQLite / PostgreSQL\n24 models · 6 Alembic migrations\nvolume: ./data")]
+        DB[("SQLite / PostgreSQL\n25 models · 7 Alembic migrations\nvolume: ./data")]
         VolOllama[("ollama_models\nnamed volume")]
     end
 

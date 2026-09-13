@@ -11,7 +11,7 @@ from app.models.kb_document import KBDocument
 from app.models.qa_run import QARun
 from app.schemas import KBDocumentCreate, KBDocumentOut, KBQuestionRequest, QARunOut, DirectAnswerRequest
 from app.services import rag_engine
-from app.services.audit_service import with_audit
+from app.services.audit_service import with_audit, save_audit
 
 router = APIRouter(prefix="/kb", tags=["knowledge-base"])
 # Топ-уровневый роутер для «чистой» ИИ-операции Варианта 5: пост `POST /ai/answer_with_sources`
@@ -52,6 +52,13 @@ async def add_kb_document(body: KBDocumentCreate, db: AsyncSession = Depends(get
 
     # Index for RAG
     await rag_engine.index_document(db, doc.id, body.text)
+
+    # fix-prompt §4: каждый вызов группы B фиксируется в audit_runs.
+    await save_audit(
+        db, "add_kb_document",
+        {"title": body.title, "text_len": len(body.text)},
+        {"document_id": doc.id}, status="ok",
+    )
     return doc
 
 
@@ -86,7 +93,8 @@ async def ask_knowledge_base(body: KBQuestionRequest, db: AsyncSession = Depends
         answer=schema.answer,
         sources_json=json.dumps([s.model_dump() for s in schema.sources], ensure_ascii=False),
         needs_review=schema.needs_review,
-        error="NO_SOURCES_FOUND" if not schema.sources else None,
+        # Option5: причина ручной проверки фиксируется в qa_runs.error.
+        error=(schema.needs_review_reason or "NEEDS_REVIEW") if schema.needs_review else None,
     )
     db.add(qa)
     await db.commit()

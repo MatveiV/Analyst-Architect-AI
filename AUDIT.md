@@ -70,7 +70,7 @@
 | `snippets` → `kb_snippets(id, created_at, document_id, snippet_text)` | `models/kb_snippet.py` (FK → `kb_documents`) | ✅ |
 | `qa_runs(id, created_at, question, answer, sources_json, needs_review, error)` | `models/qa_run.py` | ✅ |
 | `audit_runs(id, created_at, action, input, output, status, error, duration_ms)` | `models/audit_run.py` (+ провайдер/токены) | ✅ |
-| Аудит каждого вызова групп A и B | `with_audit` в `/ai/review`, `/ai/answer_with_sources`, `/kb/ask`, `/documents/{id}/review`, `/kb/*` | ✅ |
+| Аудит каждого вызова групп A и B | `with_audit` в `/ai/review`, `/ai/answer_with_sources`, `/kb/ask`, `/documents/{id}/review`; `save_audit` в `POST /documents` и `POST /kb/documents` | ✅ |
 
 ### 4.1 ✅ Физическое разделение выполнено
 ТЗ (Вариант 2) и KB-статьи (Вариант 5) лежат в **разных** таблицах:
@@ -90,6 +90,10 @@
 | В5: нет источников → «данных недостаточно», `needs_review=true` | `rag_engine.answer_with_sources` | ✅ |
 | Оба: невалидный JSON → не падать, `needs_review=true`, `error="INVALID_JSON"`, безопасный fallback | `safe_fallback_review`, `rag_engine` | ✅ |
 | Валидация строгого JSON через pydantic | `ReviewSchema`, `AnswerWithSourcesSchema` | ✅ |
+| Причина ручной проверки сохраняется (`LOW_CONFIDENCE`/`TOO_VAGUE_INPUT`/`CONTRADICTORY_INPUT`/`INVALID_JSON`) | `reviews.error`, `qa_runs.error`, `audit_runs.error` (через `with_audit`) | ✅ |
+| В2: при `needs_review=true` — минимум 3 вопроса заказчику | `ai_reviewer._ensure_min_questions` | ✅ |
+| В5: `confidence=low` → `needs_review=true`; провайдер/сеть недоступны → безопасный fallback без падения | `rag_engine.answer_with_sources` | ✅ |
+| Контракты ответов Option2/Option5 (`document_id`, `review_id`, `status:"ok"`) | computed fields в `SpecDocumentOut`/`KBDocumentOut`/`ReviewOut` | ✅ |
 
 ---
 

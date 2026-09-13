@@ -34,7 +34,7 @@
 │   │   ├── main.py             # FastAPI app, lifespan, RBAC на роутерах
 │   │   ├── config.py           # Настройки из .env (os.getenv)
 │   │   ├── database.py         # async engine, Base, Alembic→create_all fallback
-│   │   ├── models/             # 24 SQLAlchemy модели
+│   │   ├── models/             # 25 SQLAlchemy моделей (spec_documents, kb_documents, kb_snippets, ...)
 │   │   ├── schemas/            # Pydantic v2 схемы
 │   │   ├── services/
 │   │   │   ├── llm_client.py        # 5 провайдеров: Anthropic / OpenAI / ProxyAPI / OpenRouter / Ollama
@@ -58,7 +58,7 @@
 │   │   │   ├── standards_seed.py     # ГОСТ 34 / ISO 29148 / IEEE 830
 │   │   │   ├── export_service.py     # DOCX/PDF/CSV/JSON экспорт
 │   │   │   └── auth_service.py       # JWT (HS256) + bcrypt
-│   │   └── api/routers/        # 16 роутеров
+│   │   └── api/routers/        # 15 роутеров
 │   │       ├── auth.py, documents.py, reviews.py, knowledge_base.py,
 │   │       │   memory.py, diagrams.py, audit.py, standards.py, settings.py
 │   │       ├── build_projects.py     # ★ Экономический модуль
@@ -66,8 +66,8 @@
 │   │       ├── batch_reviews.py      # ★ Пакетная рецензия
 │   │       ├── risk_catalog.py, lessons.py
 │   │       └── seed.py               # ★ Демо-данные одной кнопкой (admin only)
-│   ├── alembic/versions/       # 6 миграций (0001–0006)
-│   └── tests/                  # 146 pytest тестов
+│   ├── alembic/versions/       # 7 миграций (0001–0007, включая разделение documents)
+│   └── tests/                  # 153 pytest теста
 ├── frontend/                   # React 18 + TypeScript + Vite + Tailwind
 │   └── src/pages/               # Login, Documents, DocumentDetail, Reviews,
 │                                 # BatchReview, ArchStudio, KnowledgeBase, Memory,
@@ -131,7 +131,7 @@ C4Container
 
     Container_Boundary(server, "Сервер (Docker Compose)") {
         Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 роутеров, JWT+RBAC, AI-операции, детерминированная экономика, with_audit()")
-        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "24 модели: users, documents, snippets, reviews, audit_runs, build_projects, economic_* и др.")
+        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 моделей: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_* и др.")
         Container(faiss, "FAISS-индексы", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items, перестраивается на старте")
         Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Локальный рендер PlantUML/Mermaid/GraphViz → SVG/PNG")
     }
@@ -146,6 +146,108 @@ C4Container
     Rel(backend, kroki_c, "Рендер диаграмм", "HTTP :8001")
     Rel(backend, ollama_c, "Локальный LLM (air-gapped)", "HTTP :11434")
     Rel(backend, llm, "AI-вызовы (блокируются при ENFORCE_LOCAL_ONLY)", "HTTPS/REST")
+```
+
+### Схема данных (ER) — Вариант 2 и Вариант 5 в общей БД
+
+> После миграции `0007_split_documents` рецензируемые ТЗ и статьи базы знаний
+> физически разведены: **`spec_documents`** (Вариант 2) и **`kb_documents`** + **`kb_snippets`**
+> (Вариант 5). Общий аудит всех операций — **`audit_runs`**.
+
+```mermaid
+erDiagram
+    SPEC_DOCUMENTS ||--o{ REVIEWS : "рецензируется"
+    SPEC_DOCUMENTS ||--o{ REQUIREMENTS_DOCUMENTS : "URS/SRS"
+    SPEC_DOCUMENTS ||--o{ DIAGRAM_ARTIFACTS : "диаграммы"
+    SPEC_DOCUMENTS ||--o{ ARCHITECTURE_REVIEWS : "рекомендации"
+    SPEC_DOCUMENTS ||--o{ ADR_RECORDS : "ADR"
+    SPEC_DOCUMENTS ||--o{ API_SPECS : "OpenAPI"
+    SPEC_DOCUMENTS ||--o{ BUILD_PROJECTS : "бизнес-кейс"
+    KB_DOCUMENTS ||--o{ KB_SNIPPETS : "нарезается на фрагменты"
+    KB_DOCUMENTS ||--o{ QA_RUNS : "источник ответа"
+
+    SPEC_DOCUMENTS {
+        string id PK
+        datetime created_at
+        string title
+        text text
+        string doc_type "tz|brd|user_story|srs|markdown"
+        string project_name
+        string default_requirements_standard
+        string default_diagram_standard
+    }
+    REVIEWS {
+        string id PK
+        datetime created_at
+        string document_id FK
+        text review_json
+        bool needs_review
+        string confidence
+        string error "LOW_CONFIDENCE|TOO_VAGUE_INPUT|CONTRADICTORY_INPUT|INVALID_JSON"
+    }
+    KB_DOCUMENTS {
+        string id PK
+        datetime created_at
+        string title
+        text text
+        string project_name
+        string source_type "urs|srs|adr|diagrams|lesson"
+        string source_id
+    }
+    KB_SNIPPETS {
+        string id PK
+        datetime created_at
+        string document_id FK
+        text snippet_text
+        blob embedding
+    }
+    QA_RUNS {
+        string id PK
+        datetime created_at
+        string question
+        text answer
+        text sources_json
+        bool needs_review
+        string error "NO_SOURCES_FOUND|LOW_CONFIDENCE|INVALID_JSON|LLM_ERROR"
+    }
+    AUDIT_RUNS {
+        string id PK
+        datetime created_at
+        string action
+        text input
+        text output
+        string status "ok|needs_review|error"
+        string error
+        int duration_ms
+    }
+    REQUIREMENTS_DOCUMENTS {
+        string id PK
+        string document_id FK
+        string doc_kind "urs|srs"
+    }
+    DIAGRAM_ARTIFACTS {
+        string id PK
+        string document_id FK
+        string diagram_type
+        string notation
+    }
+    ARCHITECTURE_REVIEWS {
+        string id PK
+        string document_id FK
+        bool needs_review
+    }
+    ADR_RECORDS {
+        string id PK
+        string document_id FK
+    }
+    API_SPECS {
+        string id PK
+        string document_id FK
+    }
+    BUILD_PROJECTS {
+        string id PK
+        string document_id FK
+    }
 ```
 
 ---
@@ -370,7 +472,7 @@ python -m pytest tests/ -v --asyncio-mode=auto
 
 ### База данных и аудит
 - **БД по умолчанию:** `backend/data/analyst_architect_ai.db` (SQLite). Задаётся `DATABASE_URL`.
-- **Посмотреть аудит:** `GET /audit` (все запуски) и `GET /audit/stats` (сводка). Каждый вызов групп A и B (включая `/ai/review` и `/ai/answer_with_sources`) пишет строку в `audit_runs` через `with_audit`.
+- **Посмотреть аудит:** `GET /audit` (все запуски) и `GET /audit/stats` (сводка). Каждый вызов групп A и B (включая `/ai/review`, `/ai/answer_with_sources` и создание документов) пишет строку в `audit_runs` через `with_audit()`/`save_audit()`; при ручной проверке `audit_runs.error` содержит причину (`TOO_VAGUE_INPUT`, `CONTRADICTORY_INPUT`, `LOW_CONFIDENCE`, `NO_SOURCES_FOUND`, `INVALID_JSON`, `LLM_ERROR`).
 
 ### Группа A — ИИ-рецензент (Вариант 2)
 ```bash
@@ -426,8 +528,88 @@ python -m pytest tests/test_main.py::TestAIReviewerLogic -q        # TOO_VAGUE/C
 | 10 | Чат-бот: автономность vs модерация | true | `CONTRADICTORY_INPUT` | `needs_review=true`, риск `severity=high` |
 
 #### База знаний (Вариант 5)
-- `tests_data/kb_documents.jsonl` — 5 документов (правила команды, FAQ клиентов, шаблоны ответов, словарь терминов, процесс запуска задачи).
-- `tests_data/kb_questions.jsonl` — 10 вопросов: **7** с ответом в базе (`expected_needs_review=false`, есть источники) и **3** без ответа (`expected_needs_review=true` → «данных недостаточно»).
+- `tests_data/kb_documents.jsonl` — 5 документов (правила команды, FAQ клиентов, шаблоны ответов, словарь терминов, процесс запуска задачи), каждый 20–50 строк.
+
+`tests_data/kb_questions.jsonl` — 10 вопросов: **7** с ответом в базе (`expected_needs_review=false`, есть источники) и **3** без ответа (`expected_needs_review=true` → «данных недостаточно»).
+
+| № | Вопрос (кратко) | Ожидаемый `needs_review` | Почему | На какой документ опираемся |
+|---|---|---|---|---|
+| 1 | SLA на ответы внутри команды | false | Ответ есть в правилах | «Правила работы команды» |
+| 2 | Как оформить возврат клиенту | false | Ответ есть в FAQ | «Частые вопросы клиентов» |
+| 3 | Шаги перед деплоем в production | false | Ответ есть в процессе | «Процесс запуска задачи» |
+| 4 | Что такое ADR | false | Ответ есть в словаре | «Словарь терминов» |
+| 5 | Шаблон ответа при эскалации | false | Ответ есть в шаблонах | «Шаблоны ответов» |
+| 6 | Как проводится code review | false | Ответ есть в правилах | «Правила работы команды» |
+| 7 | Что такое RPO и чем отличается от RTO | false | Ответ есть в словаре | «Словарь терминов» |
+| 8 | Библиотека для работы с PDF на Python | true | В базе знаний нет | — |
+| 9 | Настройка CI/CD пайплайна в GitLab | true | DevOps-документов нет | — |
+| 10 | Стоимость подписки | true | Финансовых документов нет | — |
+
+### Поток Варианта 2 — ИИ-рецензент ТЗ
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Аналитик
+    participant FE as Веб-панель
+    participant API as FastAPI
+    participant QC as Контроль качества
+    participant LLM as LLM (любой провайдер)
+    participant DB as SQLite
+
+    A->>FE: Вставляет текст ТЗ
+    FE->>API: POST /documents
+    API->>DB: INSERT spec_documents
+    API->>DB: INSERT audit_runs (create_document)
+    API-->>FE: 200 {document_id, status:"ok"}
+    A->>FE: «Создать рецензию»
+    FE->>API: POST /documents/{id}/review
+    API->>LLM: Строгий JSON (ReviewSchema)
+    LLM-->>API: summary, risks[], questions_to_client[], confidence
+    API->>QC: TOO_VAGUE? CONTRADICTORY? confidence=low?
+    alt Нужна ручная проверка
+        QC-->>API: needs_review=true + причина (LOW_CONFIDENCE / TOO_VAGUE_INPUT / CONTRADICTORY_INPUT)
+        QC-->>API: гарантированно ≥3 вопроса заказчику
+    else Уверенный результат
+        QC-->>API: needs_review=false
+    end
+    API->>DB: INSERT reviews (review_json, needs_review, error=причина)
+    API->>DB: INSERT audit_runs (review, status=needs_review|ok, error=причина)
+    API-->>FE: 200 {review_id, needs_review, error}
+    FE-->>A: Отчёт + метка «требует проверки»
+```
+
+### Поток Варианта 5 — Система знаний команды
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Сотрудник
+    participant FE as Веб-панель
+    participant API as FastAPI
+    participant RAG as RAG (keyword + FAISS)
+    participant LLM as LLM
+    participant DB as SQLite
+
+    U->>FE: Задаёт вопрос
+    FE->>API: POST /kb/ask
+    API->>RAG: retrieve_snippets(question)
+    RAG->>DB: SELECT kb_snippets (+ FAISS-кандидаты)
+    RAG-->>API: top-k релевантных фрагментов
+    alt Фрагментов нет
+        API->>API: безопасный fallback без вызова LLM
+        API->>DB: INSERT qa_runs (needs_review=true, error=NO_SOURCES_FOUND)
+        API->>DB: INSERT audit_runs (ask_kb, needs_review, error=NO_SOURCES_FOUND)
+        API-->>FE: {answer:"данных недостаточно", sources:[], needs_review:true}
+    else Контекст найден
+        API->>LLM: ответ ТОЛЬКО по контексту (строгий JSON)
+        LLM-->>API: answer, sources[{quote}], confidence
+        API->>API: sources пуст или confidence=low → needs_review
+        API->>DB: INSERT qa_runs + audit_runs
+        API-->>FE: {answer, sources[], confidence, needs_review}
+    end
+    FE-->>U: Ответ + цитаты-источники + метка при необходимости
+```
 
 ---
 
@@ -445,8 +627,8 @@ python -m pytest tests/test_main.py::TestAIReviewerLogic -q        # TOO_VAGUE/C
 
 ## Roadmap
 
-- **v1.0** — текущий релиз: FastAPI + 16 роутеров, 24 модели, 21 сервис, 153 pytest, React 18 + Vite, модуль экономики
-- **v1.1** — Alembic-миграции (6 шт., 0001–0006) ✅, batch-рецензия (Phase 2) ✅, webhook при `needs_review` — в работе
+- **v1.0** — текущий релиз: FastAPI + 15 роутеров, 25 моделей, 21 сервис, 153 pytest, React 18 + Vite, модуль экономики
+- **v1.1** — Alembic-миграции (7 шт., 0001–0007, включая разделение `spec_documents`/`kb_documents`) ✅, batch-рецензия (Phase 2) ✅, webhook при `needs_review` — в работе
 - **v1.2** — Vite + Tailwind ✅, OpenRouter provider ✅, ENFORCE_LOCAL_ONLY ✅, Kroki-рендер ✅; shadcn/ui / TanStack Query — в работе
 - **v1.3** — Интеграция Economic Actuals с тайм-трекерами (Toggl/Harvest) для автосбора факта
 - **v2.0** — Fine-tuned модель на корпоративных ТЗ, портфельный dashboard ROI по всем build-проектам компании

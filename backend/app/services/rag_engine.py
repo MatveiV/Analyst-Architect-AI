@@ -224,6 +224,7 @@ async def answer_with_sources(
             sources=[],
             confidence="low",
             needs_review=True,
+            needs_review_reason="NO_SOURCES_FOUND",
         )
 
     context_text = "\n\n".join(
@@ -252,18 +253,35 @@ async def answer_with_sources(
                     src.document_id = snip.document_id
                     src.document_title = doc_map.get(snip.document_id, "")
 
-        # Enforce rule: empty sources → needs_review
+        # Правило Option5: пустые источники → needs_review=true.
         if not schema.sources:
             schema.needs_review = True
+            schema.needs_review_reason = "NO_SOURCES_FOUND"
             if "недостаточно" not in schema.answer.lower():
                 schema.answer = "Данных недостаточно для ответа на этот вопрос."
+        # Правило Option5: низкая уверенность → ручная проверка.
+        elif schema.confidence == "low":
+            schema.needs_review = True
+            schema.needs_review_reason = schema.needs_review_reason or "LOW_CONFIDENCE"
+        elif schema.needs_review and not schema.needs_review_reason:
+            schema.needs_review_reason = "MODEL_FLAGGED_NEEDS_REVIEW"
 
         return schema
 
-    except (json.JSONDecodeError, ValidationError) as e:
+    except (json.JSONDecodeError, ValidationError):
         return AnswerWithSourcesSchema(
             answer="Данных недостаточно для ответа на этот вопрос.",
             sources=[],
             confidence="low",
             needs_review=True,
+            needs_review_reason="INVALID_JSON",
+        )
+    except Exception:
+        # Провайдер/сеть недоступны — не роняем запрос, отдаём безопасный ответ.
+        return AnswerWithSourcesSchema(
+            answer="Данных недостаточно для ответа на этот вопрос.",
+            sources=[],
+            confidence="low",
+            needs_review=True,
+            needs_review_reason="LLM_ERROR",
         )

@@ -89,6 +89,28 @@ def _is_too_vague(text: str) -> bool:
     return len(text.strip()) < 50 or len(text.strip().split()) < 8
 
 
+GENERIC_QUESTIONS = [
+    "Пожалуйста, уточните требования у заказчика",
+    "Предоставьте более детальное описание задачи",
+    "Опишите ожидаемый результат и критерии успеха",
+    "Каковы сроки и бюджет проекта?",
+    "Кто будет пользователями системы?",
+]
+
+
+def _ensure_min_questions(schema: ReviewSchema, minimum: int = 3) -> None:
+    """Option2: при ручной проверке questions_to_client не должен быть пустым (минимум 3)."""
+    for q in GENERIC_QUESTIONS:
+        if len(schema.questions_to_client) >= minimum:
+            break
+        if q not in schema.questions_to_client:
+            schema.questions_to_client.append(q)
+    i = 0
+    while len(schema.questions_to_client) < minimum:
+        schema.questions_to_client.append(f"Уточните детали по пункту {i + 1}")
+        i += 1
+
+
 def safe_fallback_review(error: str = "INVALID_JSON", reason: str = "") -> ReviewSchema:
     return ReviewSchema(
         summary="Не удалось автоматически проанализировать документ. Требуется ручная проверка.",
@@ -102,6 +124,7 @@ def safe_fallback_review(error: str = "INVALID_JSON", reason: str = "") -> Revie
         acceptance_criteria=[],
         confidence="low",
         needs_review=True,
+        needs_review_reason=error,
     )
 
 
@@ -127,6 +150,7 @@ async def run_ai_review(
             acceptance_criteria=[],
             confidence="low",
             needs_review=True,
+            needs_review_reason="TOO_VAGUE_INPUT",
         )
 
     # Build prompt
@@ -156,14 +180,30 @@ async def run_ai_review(
         data = json.loads(clean, strict=False)
         schema = ReviewSchema(**data)
 
-        # Post-validation: detect contradictions
-        if _detect_contradiction(text) and schema.confidence != "low":
+        # Пост-валидация 1: противоречия в требованиях → low confidence + high risk.
+        if _detect_contradiction(text):
             schema.confidence = "low"
             schema.needs_review = True
-            schema.risks.append(RiskItem(
-                severity="high",
-                description="CONTRADICTORY_INPUT: обнаружены противоречия в требованиях"
-            ))
+            schema.needs_review_reason = "CONTRADICTORY_INPUT"
+            if not any("CONTRADICTORY_INPUT" in r.description for r in schema.risks):
+                schema.risks.append(RiskItem(
+                    severity="high",
+                    description="CONTRADICTORY_INPUT: обнаружены противоречия в требованиях"
+                ))
+
+        # Пост-валидация 2: confidence="low" всегда означает ручную проверку (Option2).
+        if schema.confidence == "low":
+            schema.needs_review = True
+            if not schema.needs_review_reason:
+                schema.needs_review_reason = "LOW_CONFIDENCE"
+
+        # Пост-валидация 3: любая ручная проверка должна иметь причину в audit_runs.error.
+        if schema.needs_review and not schema.needs_review_reason:
+            schema.needs_review_reason = "MODEL_FLAGGED_NEEDS_REVIEW"
+
+        # Пост-валидация 4: при ручной проверке — минимум 3 вопроса заказчику.
+        if schema.needs_review:
+            _ensure_min_questions(schema, 3)
 
         return schema
 

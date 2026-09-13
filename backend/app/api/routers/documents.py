@@ -26,7 +26,7 @@ from app.schemas import (
 from app.services import ai_reviewer, rag_engine, architecture_engine
 from app.services import adr_generator, doc_generator, diagram_engine, export_service
 from app.services import kb_autoindex
-from app.services.audit_service import with_audit
+from app.services.audit_service import with_audit, save_audit
 from app.services.memory_service import get_memory_context, store_review_findings, rebuild_faiss_index
 from app.services.review_to_catalog import store_risks_from_review, store_lessons_from_review
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -195,6 +195,12 @@ async def create_document(body: DocumentCreate, db: AsyncSession = Depends(get_d
             db.add(artifact)
         await db.commit()
 
+    # fix-prompt §4: каждый вызов группы A фиксируется в audit_runs.
+    await save_audit(
+        db, "create_document",
+        {"title": body.title, "doc_type": body.doc_type, "text_len": len(body.text)},
+        {"document_id": doc.id}, status="ok",
+    )
     return doc
 
 
@@ -369,7 +375,8 @@ async def review_document(
         review_json=review_json_str,
         needs_review=schema.needs_review,
         confidence=schema.confidence,
-        error=None,
+        # Option2: при ручной проверке в reviews.error сохраняется причина.
+        error=(schema.needs_review_reason or "NEEDS_REVIEW") if schema.needs_review else None,
     )
     db.add(review)
     await db.commit()

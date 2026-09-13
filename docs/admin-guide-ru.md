@@ -278,8 +278,11 @@ CREATE TABLE users (
     last_login DATETIME
 );
 
-CREATE TABLE documents (...);
-CREATE TABLE reviews (...);
+CREATE TABLE spec_documents (...);  -- Вариант 2: рецензируемые ТЗ/BRD/US/SRS/Markdown
+CREATE TABLE kb_documents (...);    -- Вариант 5: статьи базы знаний
+CREATE TABLE kb_snippets (...);     -- фрагменты KB для RAG (document_id -> kb_documents)
+CREATE TABLE reviews (...);         -- review_json, needs_review, confidence, error (причина)
+CREATE TABLE qa_runs (...);         -- question, answer, sources_json, needs_review, error
 CREATE TABLE audit_runs (...);   -- action, input, output, status, error, duration_ms
 CREATE TABLE memory_items (...);
 CREATE TABLE provider_settings (...);
@@ -288,19 +291,19 @@ CREATE TABLE provider_settings (...);
 ### Резервное копирование
 
 ```bash
-cp data/analyst_guru.db backups/analyst_guru_$(date +%Y%m%d_%H%M%S).db
+cp data/analyst_architect_ai.db backups/analyst_architect_ai_$(date +%Y%m%d_%H%M%S).db
 
 # Просмотр пользователей
-sqlite3 data/analyst_guru.db "SELECT username, role, is_active, last_login FROM users;"
+sqlite3 data/analyst_architect_ai.db "SELECT username, role, is_active, last_login FROM users;"
 
 # Просмотр аудита
-sqlite3 data/analyst_guru.db "SELECT created_at, action, status FROM audit_runs ORDER BY created_at DESC LIMIT 10;"
+sqlite3 data/analyst_architect_ai.db "SELECT created_at, action, status, error FROM audit_runs ORDER BY created_at DESC LIMIT 10;"
 ```
 
 ### Переключение на PostgreSQL
 
 ```env
-DATABASE_URL=postgresql+asyncpg://user:password@host:5432/analyst_guru
+DATABASE_URL=postgresql+asyncpg://user:password@host:5432/analyst_architect_ai
 ```
 
 ---
@@ -358,7 +361,7 @@ graph TB
         FastAPI["python:3.11-slim\nПорт 8000\n15 роутеров · JWT+RBAC\nFAISS-индексы in-memory"]
         Kroki["yuzutech/kroki:0.25\nПорт 8001\nЛокальный рендер\nPlantUML/Mermaid/GraphViz"]
         Ollama["ollama/ollama\nПорт 11434\nПрофиль local-llm\n(опционально)"]
-        DB[("SQLite / PostgreSQL\n24 модели · 6 Alembic-миграций\nvolume: ./data")]
+        DB[("SQLite / PostgreSQL\n25 моделей · 7 Alembic-миграций\nvolume: ./data")]
         VolOllama[("ollama_models\nnamed volume")]
     end
 

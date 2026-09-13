@@ -1,7 +1,7 @@
 # Руководство пользователя Analyst-Architect-AI
 
 > **Analyst-Architect-AI** — AI-копилот системного аналитика и архитектора решений.
-> Версия: 1.0.0 | Языки интерфейса: 🇷🇺 Русский / 🇬🇧 English | 15 экранов, 16 API-роутеров, 24 модели
+> Версия: 1.0.0 | Языки интерфейса: 🇷🇺 Русский / 🇬🇧 English | 15 экранов, 15 API-роутеров, 25 моделей
 
 ---
 
@@ -135,7 +135,7 @@ C4Container
 
     Container_Boundary(server, "Сервер (Docker Compose)") {
         Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 роутеров, JWT+RBAC, AI-операции, детерминированная экономика, with_audit()")
-        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "24 модели: users, documents, snippets, reviews, audit_runs, build_projects, economic_* и др.")
+        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 моделей: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_* и др.")
         Container(faiss, "FAISS-индексы", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items")
         Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Локальный рендер PlantUML/Mermaid/GraphViz → SVG/PNG")
     }
@@ -452,7 +452,7 @@ Route передаётся HTTP-заголовком `X-Route` в каждом �
 | BRD | `brd` | Business Requirements Document |
 | User Story | `user_story` | Пользовательские истории |
 | SRS | `srs` | Software Requirements Specification |
-| KB Article | `kb_article` | Статья базы знаний (индексируется для RAG) |
+| KB Article | `kb_article` | Статья базы знаний — создаётся отдельно в разделе «База знаний» (`POST /kb/documents`, таблица `kb_documents`); в `/documents` не принимается |
 
 ### Создание документа
 
@@ -803,12 +803,27 @@ classDiagram
         +hasPermission(permission)
     }
 
-    class Document {
+    class SpecDocument {
         +String id
         +String title
         +String text
         +String doc_type
         +String project_name
+    }
+
+    class KBDocument {
+        +String id
+        +String title
+        +String text
+        +String source_type
+        +String source_id
+    }
+
+    class KBSnippet {
+        +String id
+        +String document_id
+        +String snippet_text
+        +Bytes embedding
     }
 
     class Review {
@@ -817,12 +832,23 @@ classDiagram
         +String review_json
         +Boolean needs_review
         +String confidence
+        +String error
+    }
+
+    class QARun {
+        +String id
+        +String question
+        +String answer
+        +String sources_json
+        +Boolean needs_review
+        +String error
     }
 
     class AuditRun {
         +String id
         +String action
         +String status
+        +String error
         +Integer duration_ms
     }
 
@@ -833,7 +859,8 @@ classDiagram
         +Float relevance_score
     }
 
-    Document "1" --> "*" Review : имеет
-    Document "1" --> "*" Snippet : разбивается на
+    SpecDocument "1" --> "*" Review : имеет
+    KBDocument "1" --> "*" KBSnippet : разбивается на
+    KBDocument "1" --> "*" QARun : источник ответа
     AuditRun "*" --> "1" User : выполнен пользователем
 ```

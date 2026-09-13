@@ -96,13 +96,21 @@
 | Таблица | Назначение |
 |---------|-----------|
 | **`users`** (новое) | Пользователи: id, username, email, hashed_password, role, is_active, last_login |
-| `documents` | ТЗ и KB-документы |
-| `snippets` | Фрагменты для RAG |
-| `reviews` | AI-рецензии: review_json, needs_review, confidence |
-| `qa_runs` | История Q&A (KB) |
+| **`spec_documents`** (Вариант 2) | Рецензируемые ТЗ/BRD/User Story/SRS/Markdown: id, created_at, title, text, doc_type, project_name |
+| **`kb_documents`** (Вариант 5) | Статьи базы знаний: id, created_at, title, text, project_name, source_type, source_id |
+| **`kb_snippets`** (Вариант 5) | Фрагменты KB для RAG: id, created_at, document_id, snippet_text, embedding |
+| `reviews` | AI-рецензии: review_json, needs_review, confidence, **error** (причина ручной проверки) |
+| `qa_runs` | История Q&A (KB): question, answer, sources_json, needs_review, error |
 | `audit_runs` | Аудит: action, input, output, status, error, duration_ms |
+| `requirements_documents` | Сохранённые URS/SRS (standard_profile, confidence, needs_review) |
 | `memory_items` | 5-типовая память |
 | `provider_settings` | Настройки LLM-провайдеров |
+
+> Миграция `0007_split_documents` физически разделила прежнюю общую таблицу `documents`
+> на `spec_documents` (Вариант 2) и `kb_documents` + `kb_snippets` (Вариант 5); `audit_runs`
+> общий для обоих модулей. Причины ручной проверки (`LOW_CONFIDENCE`, `TOO_VAGUE_INPUT`,
+> `CONTRADICTORY_INPUT`, `INVALID_JSON`, `NO_SOURCES_FOUND`, `LLM_ERROR`) сохраняются в
+> `reviews.error` / `qa_runs.error` / `audit_runs.error`.
 
 ---
 
@@ -118,9 +126,14 @@
   "questions_to_client": ["..."],
   "acceptance_criteria": ["..."],
   "confidence": "high|medium|low",
-  "needs_review": false
+  "needs_review": false,
+  "needs_review_reason": "LOW_CONFIDENCE|TOO_VAGUE_INPUT|CONTRADICTORY_INPUT|INVALID_JSON|"
 }
 ```
+
+> `needs_review_reason` проставляет сервис контроля качества (не LLM) и дублирует причину
+> в `reviews.error` и `audit_runs.error`. При `needs_review=true` гарантируется ≥3 вопроса
+> заказчику; при `confidence="low"` ручная проверка включается всегда.
 
 ### Параметры LLM
 

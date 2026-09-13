@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 
 # ─── Documents ───────────────────────────────────────────────────────────────
@@ -30,6 +30,11 @@ class SpecDocumentOut(BaseModel):
     default_requirements_standard: Optional[str] = None
     default_diagram_standard: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field  # Option2: ответ должен содержать document_id
+    @property
+    def document_id(self) -> str:
+        return self.id
 
 
 # Алиасы для обратной совместимости со старым импортом `DocumentCreate`/`DocumentOut`.
@@ -61,7 +66,14 @@ class KBDocumentOut(BaseModel):
     source_id: Optional[str] = None
     # Константа для совместимости со старым DocumentOut-контрактом.
     doc_type: str = "kb_article"
+    # Option5 §1: ответ создаётся в формате {"status":"ok","document_id":"..."}.
+    status: str = "ok"
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field  # Option5: ответ должен содержать document_id
+    @property
+    def document_id(self) -> str:
+        return self.id
 
 
 class KBSnippetOut(BaseModel):
@@ -91,6 +103,9 @@ class ReviewSchema(BaseModel):
     architecture_risks: List[str] = []
     confidence: str = "medium"
     needs_review: bool = False
+    # Причина ручной проверки (LOW_CONFIDENCE / TOO_VAGUE_INPUT / CONTRADICTORY_INPUT /
+    # INVALID_JSON / ...). Заполняется сервисом контроля качества, а не моделью.
+    needs_review_reason: str = ""
 
 
 class ReviewOut(BaseModel):
@@ -102,6 +117,16 @@ class ReviewOut(BaseModel):
     confidence: str
     error: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field  # Option2 §2: выход рецензии должен содержать review_id
+    @property
+    def review_id(self) -> str:
+        return self.id
+
+    @computed_field  # Option2 §2: удобный алиас причины ручной проверки
+    @property
+    def needs_review_reason(self) -> Optional[str]:
+        return self.error
 
 
 # ─── Knowledge Base ───────────────────────────────────────────────────────────
@@ -121,6 +146,8 @@ class AnswerWithSourcesSchema(BaseModel):
     sources: List[SourceItem] = []
     confidence: str = "medium"
     needs_review: bool = False
+    # Причина ручной проверки (NO_SOURCES_FOUND / LOW_CONFIDENCE / INVALID_JSON / ...).
+    needs_review_reason: str = ""
 
 
 class QARunOut(BaseModel):

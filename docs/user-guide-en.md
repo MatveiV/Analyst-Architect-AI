@@ -107,7 +107,7 @@ C4Container
 
     Container_Boundary(server, "Server (Docker Compose)") {
         Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 routers, JWT+RBAC, AI ops, deterministic economics, with_audit()")
-        ContainerDb(db, "Database", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "24 models: users, documents, snippets, reviews, audit_runs, build_projects, economic_*, etc.")
+        ContainerDb(db, "Database", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 models: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_*, etc.")
         Container(faiss, "FAISS indices", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items")
         Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Local PlantUML/Mermaid/GraphViz render → SVG/PNG")
     }
@@ -395,7 +395,7 @@ On the document detail page, the **📄 Final MD** button generates a consolidat
 | BRD | `brd` | Business Requirements Document |
 | User Story | `user_story` | User stories format |
 | SRS | `srs` | Software Requirements Specification |
-| KB Article | `kb_article` | Knowledge base article (indexed for RAG) |
+| KB Article | `kb_article` | Knowledge base article — created separately on the Knowledge Base page (`POST /kb/documents`, `kb_documents` table); rejected by `/documents` |
 
 Click **+ New Document**, fill in title/type/project/text (up to 30,000 chars), click **✓ Create**. The detail page has tabs: Text, Review, Architecture, ADR, API, Diagrams, Specifications.
 
@@ -632,11 +632,27 @@ classDiagram
         +hasPermission(permission)
     }
 
-    class Document {
+    class SpecDocument {
         +String id
         +String title
         +String text
         +String doc_type
+        +String project_name
+    }
+
+    class KBDocument {
+        +String id
+        +String title
+        +String text
+        +String source_type
+        +String source_id
+    }
+
+    class KBSnippet {
+        +String id
+        +String document_id
+        +String snippet_text
+        +Bytes embedding
     }
 
     class Review {
@@ -645,15 +661,28 @@ classDiagram
         +String review_json
         +Boolean needs_review
         +String confidence
+        +String error
+    }
+
+    class QARun {
+        +String id
+        +String question
+        +String answer
+        +String sources_json
+        +Boolean needs_review
+        +String error
     }
 
     class AuditRun {
         +String id
         +String action
         +String status
+        +String error
         +Integer duration_ms
     }
 
-    Document "1" --> "*" Review : has
+    SpecDocument "1" --> "*" Review : has
+    KBDocument "1" --> "*" KBSnippet : split into
+    KBDocument "1" --> "*" QARun : source of answer
     AuditRun "*" --> "1" User : performed by
 ```
