@@ -31,6 +31,10 @@ _tmp_*
 *.bundle
 All_Phases_full.diff
 
+# One-off demo/debug scripts in filesdocs/ (removed from repo, kept locally)
+filesdocs/*.py
+filesdocs/test_state.json
+
 # Node
 node_modules/
 frontend/build/
