@@ -25,6 +25,12 @@ data/
 .pids/
 .zcode/
 
+# Build / release artifacts (not source)
+_tmp_*
+*.zip
+*.bundle
+All_Phases_full.diff
+
 # Node
 node_modules/
 frontend/build/
