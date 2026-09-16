@@ -704,6 +704,15 @@ ROI_12мес = ((Выгода − OPEX) × 12 − CAPEX) / CAPEX × 100
 | **OpenRouter** | `api_key`, `base_url`, `route` (`openrouter/free` \| `openrouter/fusion` \| `openrouter/pareto-code`), `model` |
 | **Ollama** (локально) | `base_url`, `model` (qwen2.5:14b-instruct); список реально скачанных моделей подтягивается с `/v1/models` через `GET /settings/providers/ollama/models` |
 
+> **Как использовать локальную модель через Ollama (без API-ключей, работа offline):**
+>
+> 1. Установите Ollama: <https://ollama.com/download> (Windows / macOS / Linux).
+> 2. Скачайте модель: `ollama pull qwen2.5` (≈ 4.7 ГБ; можно также `qwen2.5:14b-instruct` для лучшего качества).
+> 3. На странице **⚙️ Настройки** нажмите **+ Добавить провайдера** и выберите **Ollama**. В поле `base_url` введите `http://127.0.0.1:11434/v1` (если Ollama работает на хосте) или `http://host.docker.internal:11434` (если приложение в Docker). Нажмите **⚡ Тест связи** — должен появиться список скачанных моделей. Выберите нужную и сохраните.
+> 4. *(Опционально)* В файле `.env` задайте `ENFORCE_LOCAL_ONLY=true` для полного отключения исходящих HTTPS-вызовов к облачным LLM (air-gapped-режим).
+> 5. *(Важно)* Если модель работает медленно (CPU без GPU), увеличьте таймаут: `LLM_TIMEOUT=2400` в `.env`. Без этого долгие генерации URS/SRS обрываются и уходят в safe-fallback с `needs_review=true`.
+> 6. Стоимость LLM-вызовов при работе через Ollama всегда равна **$0** — это подтверждено модулем экономики (фактические расходы `actual_llm_cost=0` в `audit_runs`).
+
 **Действия:**
 - **Определить провайдера** — `POST /settings/detect` по API-ключу / Base URL (эвристики: sk-ant- → Anthropic, sk-or- → OpenRouter и др.)
 - Сохранить настройки провайдера → запись в `provider_settings` (приоритет над `.env`)

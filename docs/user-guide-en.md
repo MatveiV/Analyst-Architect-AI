@@ -364,6 +364,18 @@ Step 4: As needed: change role (dropdown), reset password (🔑), block/unblock 
 | **OpenAI GPT** | OpenAI-compat | `https://api.openai.com/v1` | GPT-4o, GPT-4o-mini |
 | **ProxyAPI** | OpenAI-compat | `https://api.proxyapi.ru/anthropic` | Claude access via Russian proxy |
 | **OpenRouter** | OpenAI-compat | `https://openrouter.ai/api/v1` | Gateway to 200+ models |
+| **Ollama** (local) | OpenAI-compat | `http://127.0.0.1:11434/v1` | No API key required, works fully offline; the list of actually pulled models is fetched from `/v1/models` (`GET /settings/providers/ollama/models`) |
+
+### Local Model with Ollama (no cloud keys, offline)
+
+The whole product works **fully offline** using a local LLM — no OpenAI/Anthropic keys needed:
+
+1. Install Ollama: <https://ollama.com/download> (Windows / macOS / Linux).
+2. Pull a model: `ollama pull qwen2.5` (≈ 4.7 GB; `qwen2.5:14b-instruct` for better quality).
+3. On the **⚙️ Settings** page add a provider and pick **Ollama**. Set `base_url` to `http://127.0.0.1:11434/v1` (Ollama on the host) or `http://host.docker.internal:11434` (app inside Docker). Click **⚡ Test connection** — the app lists models actually downloaded. Select one and save.
+4. *(Air-gapped mode)* Set `ENFORCE_LOCAL_ONLY=true` in `.env` to block all outbound HTTPS calls to cloud LLMs.
+5. *(Important)* On CPU-only machines raise the timeout: `LLM_TIMEOUT=2400` in `.env`, otherwise long URS/SRS generations abort into the safe-fallback (`needs_review=true`).
+6. LLM cost through Ollama is always **$0** — verified by the economics module (`actual_llm_cost=0` in `audit_runs`).
 
 ### OpenRouter Route
 

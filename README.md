@@ -298,6 +298,40 @@ docker-compose up --build
 # Frontend: http://localhost:3000
 ```
 
+### Запуск с локальным Ollama (без облачных ключей)
+
+Приложение работает полностью **offline** с локальным LLM — API-ключи облачных сервисов не нужны.
+
+```bash
+# 1. Установите Ollama (https://ollama.com)
+#    Windows: https://ollama.com/download/windows
+#    macOS:   https://ollama.com/download/mac
+#    Linux:   curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Скачайте модель
+ollama pull qwen2.5
+
+# 3. Сконфигурируйте .env для локального режима
+cat > .env << 'EOF'
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
+OLLAMA_MODEL=qwen2.5
+LLM_TIMEOUT=2400
+ENFORCE_LOCAL_ONLY=true
+APP_SECRET_KEY=$(openssl rand -hex 32)
+DATABASE_URL=sqlite:///./data/analyst_architect_ai.db
+EOF
+
+# 4. Запустите (Docker Compose поднимет Ollama внутри контейнера)
+docker-compose --profile local-llm up --build
+```
+
+**Важно:**
+- `LLM_TIMEOUT=2400` — CPU-модели генерируют ответ за 2–5 минут; без поднятия таймаута запросы обрываются и уходят в `needs_review=true`.
+- `ENFORCE_LOCAL_ONLY=true` — блокирует все исходящие HTTPS-вызовы; остаются только локальные Ollama + Kroki (air-gapped-режим).
+- Стоимость LLM-вызовов = **$0** (см. «Модуль экономики» ниже).
+- Профиль `local-llm` в `docker-compose.yml` поднимает контейнер `ollama/ollama` на порту 11434; если Ollama уже установлен на хосте, задайте `OLLAMA_BASE_URL=http://host.docker.internal:11434` (Win/Mac) или `http://172.17.0.1:11434` (Linux).
+
 ### Быстрая загрузка демо-данных (после первого входа как admin)
 
 ```bash
