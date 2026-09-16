@@ -128,8 +128,8 @@ curl -i http://localhost:8000/documents
 TOKEN=$(curl -s -X POST http://localhost:8000/auth/login -d "username=analyst&password=analyst123" | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/documents
 
-# Analyst tries settings — 403
-curl -i -H "Authorization: Bearer $TOKEN" http://localhost:8000/settings/providers
+# Settings available to any role (with analyst token — 200)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/settings/providers
 ```
 
 ---
@@ -359,7 +359,7 @@ sequenceDiagram
         API->>DB: SELECT * FROM provider_settings
         API-->>FE: 200 + 5-provider config
     else no / invalid token
-        Dep-->>API: 403 Forbidden
-        API-->>FE: 403
+        Dep-->>API: 401 Unauthorized
+        API-->>FE: 401
     end
 ```

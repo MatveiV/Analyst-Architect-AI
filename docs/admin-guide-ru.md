@@ -133,8 +133,8 @@ curl -i http://localhost:8000/documents
 TOKEN=$(curl -s -X POST http://localhost:8000/auth/login -d "username=analyst&password=analyst123" | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/documents
 
-# Аналитик пытается зайти в настройки — 403
-curl -i -H "Authorization: Bearer $TOKEN" http://localhost:8000/settings/providers
+# Настройки доступны любой роли (с токеном аналитика — 200)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/settings/providers
 ```
 
 ---
@@ -420,8 +420,8 @@ sequenceDiagram
         Dep-->>API: OK, пропускаем
         API->>DB: SELECT * FROM provider_settings
         API-->>FE: 200 + конфиг 5 провайдеров
-    else no / invalid token
-        Dep-->>API: 403 Forbidden
-        API-->>FE: 403
+    else нет / невалидный токен
+        Dep-->>API: 401 Unauthorized
+        API-->>FE: 401
     end
 ```

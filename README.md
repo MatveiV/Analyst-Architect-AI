@@ -67,7 +67,7 @@
 │   │       ├── risk_catalog.py, lessons.py
 │   │       └── seed.py               # ★ Демо-данные одной кнопкой (admin only)
 │   ├── alembic/versions/       # 7 миграций (0001–0007, включая разделение documents)
-│   └── tests/                  # 153 pytest теста
+│   └── tests/                  # 160 pytest тестов
 ├── frontend/                   # React 18 + TypeScript + Vite + Tailwind
 │   └── src/pages/               # Login, Documents, DocumentDetail, Reviews,
 │                                 # BatchReview, ArchStudio, KnowledgeBase, Memory,
@@ -376,7 +376,7 @@ curl -X POST http://localhost:8000/ai/review -H "Authorization: Bearer $TOKEN" \
 | `LLM_TIMEOUT` | Таймаут одного LLM-вызова, секунды. Для локальных моделей (Ollama на CPU) поднимайте до `2400`+ — иначе долгая генерация обрывается и уходит в safe-fallback (`needs_review=true`) | `600` |
 | `LLM_COST_USD_TO_RUB` | Курс для пересчёта факт. расходов LLM | `90.0` |
 
-> Рантайм-переключение провайдера возможно через БД (`/settings/providers`, роль architect+) — настройки в БД имеют приоритет над `.env`.
+> Рантайм-переключение провайдера возможно через БД (`/settings/providers`, доступно любой роли) — настройки в БД имеют приоритет над `.env`.
 
 ---
 
@@ -463,9 +463,10 @@ python -m pytest tests/ -v --asyncio-mode=auto
 | **Phase 3** — KB-autoindexing, usage↔economics (actual LLM cost) | phase3_* |
 | Выпускные варианты 2+5 — наличие обязательных эндпоинтов групп A/B, структура `tests_data` | graduation_requirements |
 | Экономический модуль (CAPEX/OPEX/ROI формулы + API) | economics |
-| **Итого** | **153** ✅ |
+| **Настройки LLM-провайдеров для любой роли** (сохранение ключа, тест соединения, детекция провайдера) | test_settings_provider |
+| **Итого** | **160** ✅ |
 
-> 153/153 тестов проходят; TypeScript: 0 ошибок (`tsc --noEmit`); production-build фронтенда — чистый. Frontend E2E-тестов нет (в roadmap).
+> 160/160 тестов проходят; TypeScript: 0 ошибок (`tsc --noEmit`); production-build фронтенда — чистый. Frontend E2E-тестов нет (в roadmap).
 
 ---
 
@@ -616,6 +617,22 @@ sequenceDiagram
 
 ---
 
+## Сдача проекта (чек-лист артефактов по `InitialTask.md`)
+
+| # | Требование InitialTask | Где лежит |
+|---|------------------------|-----------|
+| 1 | Ссылка на репозиторий без секретов | https://github.com/MatveiV/Analyst-Architect-AI · проверка секретов: `git grep -I -n -E "(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY)" HEAD` → пусто |
+| 2 | README (запуск ≤ 10 мин, переменные окружения, примеры запросов, где БД, как воспроизвести ручную проверку) | этот файл: «Быстрый старт» §, «Конфигурация (.env)» §, «Группа A/B — примеры curl» §, «Как воспроизвести ручную проверку» § |
+| 3 | `.env.example` без секретов | [`.env.example`](.env.example) |
+| 4 | Dockerfile + docker-compose.yml | [`backend/Dockerfile`](backend/Dockerfile), [`frontend/Dockerfile`](frontend/Dockerfile), [`docker-compose.yml`](docker-compose.yml) |
+| 5 | 10 тестовых входов (ТЗ + KB), включая 2–3 с `needs_review=true` | [`tests_data/specs/specs.jsonl`](tests_data/specs/specs.jsonl) (10 ТЗ), [`tests_data/kb_documents.jsonl`](tests_data/kb_documents.jsonl) (5), [`tests_data/kb_questions.jsonl`](tests_data/kb_questions.jsonl) (10) — таблицы ожиданий в § «Тестовые данные» |
+| 6 | Доказательства работы: audit_runs на каждое действие + скриншоты (успешный сценарий, ручная проверка с меткой и причиной, витрина, экспорт) | скриншоты: [`docs/screenshots/`](docs/screenshots/) (9 шт.); сырые выгрузки: [`tests_data/evidence/`](tests_data/evidence/) (audit-runs.json, reviews-list.json, review-export.json/csv, kb-history.json); отчёт E2E на реальном LLM: [`tests_data/RESULTS.md`](tests_data/RESULTS.md) |
+| 7 | Демо-видео 2–4 минуты | сценарий съёмки: [`docs/demo-recording-guide.md`](docs/demo-recording-guide.md) (запись по шагам с таймингом) — видео записывается по этому сценарию |
+| 8 | Защита 5–7 минут | сценарий: [`docs/defense-script.md`](docs/defense-script.md) (пошаговый текст речи + тайминг) |
+| 9 | Отчёт по шаблону | [`docs/graduation-report.md`](docs/graduation-report.md) |
+
+---
+
 ## Документация
 
 | Документ | Описание |
@@ -625,12 +642,14 @@ sequenceDiagram
 | [docs/admin-guide-ru.md](docs/admin-guide-ru.md) / [-en.md](docs/admin-guide-en.md) | Руководство администратора |
 | [docs/graduation-report.md](docs/graduation-report.md) | Отчёт с мини-экономикой (курсовой формат) |
 | [docs/defense-script.md](docs/defense-script.md) | Сценарий защиты проекта |
+| [docs/demo-recording-guide.md](docs/demo-recording-guide.md) | Сценарий съёмки демо-видео 2–4 мин |
+| [docs/screenshots/](docs/screenshots/) | Скриншоты-доказательства (витрина, рецензия, ручная проверка, аудит, экспорт) |
 
 ---
 
 ## Roadmap
 
-- **v1.0** — текущий релиз: FastAPI + 15 роутеров, 25 моделей, 21 сервис, 153 pytest, React 18 + Vite, модуль экономики
+- **v1.0** — текущий релиз: FastAPI + 15 роутеров, 25 моделей, 21 сервис, 160 pytest, React 18 + Vite, модуль экономики
 - **v1.1** — Alembic-миграции (7 шт., 0001–0007, включая разделение `spec_documents`/`kb_documents`) ✅, batch-рецензия (Phase 2) ✅, webhook при `needs_review` — в работе
 - **v1.2** — Vite + Tailwind ✅, OpenRouter provider ✅, ENFORCE_LOCAL_ONLY ✅, Kroki-рендер ✅; shadcn/ui / TanStack Query — в работе
 - **v1.3** — Интеграция Economic Actuals с тайм-трекерами (Toggl/Harvest) для автосбора факта

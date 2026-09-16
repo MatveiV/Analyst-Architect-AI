@@ -1,0 +1,9 @@
+{
+  "total": 38,
+  "ok": 15,
+  "errors": 0,
+  "needs_review": 23,
+  "avg_duration_ms": 298462.4,
+  "error_rate_pct": 0,
+  "needs_review_pct": 60.5
+}
