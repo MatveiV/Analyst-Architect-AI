@@ -87,65 +87,78 @@
 ### C4 Level 1 — Контекст системы
 
 ```mermaid
-C4Context
-    title Analyst-Architect-AI — Системный контекст
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef sys fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef ext fill:#999999,stroke:#666666,color:#ffffff
 
-    Person(analyst, "Аналитик", "Рецензирует ТЗ, генерирует URS/SRS/ADR, считает экономику")
-    Person(architect, "Архитектор", "Проектирует архитектуру, настраивает AI-провайдеров")
-    Person(admin, "Администратор", "Управляет пользователями и демо-данными")
+    analyst(["Аналитик<br/>рецензирует ТЗ, генерирует URS/SRS/ADR, считает экономику"])
+    architect(["Архитектор<br/>проектирует архитектуру, настраивает AI-провайдеров"])
+    admin(["Администратор<br/>управляет пользователями и демо-данными"])
 
-    System(ag, "Analyst-Architect-AI", "AI-копилот для аналитика и архитектора")
+    ag["Analyst-Architect-AI<br/>AI-копилот для аналитика и архитектора"]
 
-    System_Ext(claude, "Anthropic Claude", "LLM по умолчанию (claude-sonnet-4)")
-    System_Ext(openai, "OpenAI", "gpt-4o")
-    System_Ext(proxyapi, "ProxyAPI", "OpenAI-совместимый RU-прокси")
-    System_Ext(openrouter, "OpenRouter", "Шлюз к 200+ моделям")
-    System_Ext(ollama, "Ollama", "Локальный LLM (air-gapped, qwen2.5)")
-    System_Ext(kroki, "Kroki", "Локальный рендер PlantUML/Mermaid → SVG/PNG")
+    claude["Anthropic Claude<br/>LLM по умолчанию (claude-sonnet-4)"]
+    openai["OpenAI<br/>gpt-4o"]
+    proxyapi["ProxyAPI<br/>OpenAI-совместимый RU-прокси"]
+    openrouter["OpenRouter<br/>шлюз к 200+ моделям"]
+    ollama["Ollama<br/>локальный LLM (air-gapped, qwen2.5)"]
+    kroki["Kroki<br/>локальный рендер PlantUML/Mermaid → SVG/PNG"]
 
-    Rel(analyst, ag, "Работает с документами, рецензиями, экономикой")
-    Rel(architect, ag, "Генерирует архитектуру, диаграммы, настраивает LLM")
-    Rel(admin, ag, "Управляет пользователями, загружает seed-данные")
-    Rel(ag, claude, "Вызывает LLM API", "HTTPS/REST")
-    Rel(ag, openai, "Вызывает LLM API (опционально)", "HTTPS/REST")
-    Rel(ag, proxyapi, "Вызывает через RU-прокси (опционально)", "HTTPS/REST")
-    Rel(ag, openrouter, "Вызывает через шлюз (опционально)", "HTTPS/REST")
-    Rel(ag, ollama, "Локальный LLM (без выхода в интернет)", "HTTP :11434")
-    Rel(ag, kroki, "Рендер диаграмм (без выхода в интернет)", "HTTP :8001")
+    analyst -->|"документы, рецензии, экономика"| ag
+    architect -->|"архитектура, диаграммы, настройки LLM"| ag
+    admin -->|"пользователи, seed-данные"| ag
+    ag -->|"Вызывает LLM API · HTTPS/REST"| claude
+    ag -->|"Вызывает LLM API (опционально) · HTTPS/REST"| openai
+    ag -->|"RU-прокси (опционально) · HTTPS/REST"| proxyapi
+    ag -->|"Шлюз (опционально) · HTTPS/REST"| openrouter
+    ag -->|"Локальный LLM без выхода в интернет · HTTP :11434"| ollama
+    ag -->|"Рендер диаграмм без выхода в интернет · HTTP :8001"| kroki
 
-    UpdateRelConfig(ag, claude, "При ENFORCE_LOCAL_ONLY=true — заблокирован")
-    UpdateRelConfig(ag, openai, "При ENFORCE_LOCAL_ONLY=true — заблокирован")
+    class analyst,architect,admin person
+    class ag sys
+    class claude,openai,proxyapi,openrouter,ollama,kroki ext
 ```
+
+> При `ENFORCE_LOCAL_ONLY=true` вызовы облачных LLM (Anthropic/OpenAI) из этой схемы заблокированы.
 
 ### C4 Level 2 — Контейнеры
 
 ```mermaid
-C4Container
-    title Analyst-Architect-AI — Контейнеры
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef cont fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef storage fill:#999999,stroke:#666666,color:#ffffff
+    classDef ext fill:#a0a0a0,stroke:#666666,color:#ffffff,stroke-width:1px
 
-    Person(user, "Пользователь", "analyst / architect / admin")
+    user(["Пользователь<br/>analyst / architect / admin"])
 
-    Container_Boundary(spa, "Клиент") {
-        Container(frontend, "React SPA", "React 18 + TS + Vite + Tailwind", "Тёмная тема, JWT в localStorage, i18n RU/EN, экраны: документы, рецензии, KB, экономика, диаграммы")
-    }
+    subgraph spa["Клиент"]
+        frontend["React SPA<br/>React 18 + TS + Vite + Tailwind<br/>тёмная тема, JWT в localStorage, i18n RU/EN: документы, рецензии, KB, экономика, диаграммы"]
+    end
 
-    Container_Boundary(server, "Сервер (Docker Compose)") {
-        Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 роутеров, JWT+RBAC, AI-операции, детерминированная экономика, with_audit()")
-        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 моделей: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_* и др.")
-        Container(faiss, "FAISS-индексы", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items, перестраивается на старте")
-        Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Локальный рендер PlantUML/Mermaid/GraphViz → SVG/PNG")
-    }
+    subgraph server["Сервер (Docker Compose)"]
+        backend["FastAPI<br/>Python 3.11 + SQLAlchemy async + Pydantic v2<br/>15 роутеров, JWT+RBAC, AI-операции, with_audit()"]
+        db[("База данных<br/>SQLite (aiosqlite) / PostgreSQL (asyncpg)<br/>25 моделей: users, spec_documents, kb_documents, reviews, audit_runs, build_projects, ...")]
+        faiss["FAISS-индексы<br/>faiss-cpu + sentence-transformers<br/>in-memory IndexFlatIP: KB-snippets + memory_items"]
+        kroki_c["Kroki<br/>yuzutech/kroki:0.25<br/>рендер PlantUML/Mermaid/GraphViz → SVG/PNG"]
+    end
 
-    System_Ext(ollama_c, "Ollama", "Локальный LLM (профиль local-llm)")
-    System_Ext(llm, "Облачные LLM", "Anthropic / OpenAI / ProxyAPI / OpenRouter")
+    ollama_c["Ollama<br/>локальный LLM (профиль local-llm)"]
+    llm["Облачные LLM<br/>Anthropic / OpenAI / ProxyAPI / OpenRouter"]
 
-    Rel(user, frontend, "Использует браузер", "HTTPS :3000")
-    Rel(frontend, backend, "REST API + JWT Bearer", "HTTP/JSON :8000")
-    Rel(backend, db, "Async-запросы", "SQLAlchemy")
-    Rel(backend, faiss, "Гибридный поиск (keyword + semantic)", "IndexFlatIP, cosine")
-    Rel(backend, kroki_c, "Рендер диаграмм", "HTTP :8001")
-    Rel(backend, ollama_c, "Локальный LLM (air-gapped)", "HTTP :11434")
-    Rel(backend, llm, "AI-вызовы (блокируются при ENFORCE_LOCAL_ONLY)", "HTTPS/REST")
+    user -->|"использует браузер · HTTPS :3000"| frontend
+    frontend -->|"REST API + JWT Bearer · HTTP/JSON :8000"| backend
+    backend -->|"async-запросы · SQLAlchemy"| db
+    backend -->|"гибридный поиск (keyword + semantic) · IndexFlatIP, cosine"| faiss
+    backend -->|"рендер диаграмм · HTTP :8001"| kroki_c
+    backend -->|"локальный LLM (air-gapped) · HTTP :11434"| ollama_c
+    backend -->|"AI-вызовы (блок. при ENFORCE_LOCAL_ONLY) · HTTPS/REST"| llm
+
+    class user person
+    class frontend,backend,faiss,kroki_c cont
+    class db storage
+    class ollama_c,llm ext
 ```
 
 ### Схема данных (ER) — Вариант 2 и Вариант 5 в общей БД

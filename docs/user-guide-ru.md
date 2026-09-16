@@ -91,114 +91,132 @@ Analyst-Architect-AI решает проблему **дорогостоящег�
 ### C4 Level 1 — Контекст системы
 
 ```mermaid
-C4Context
-    title Analyst-Architect-AI — Контекст системы
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef sys fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef ext fill:#999999,stroke:#666666,color:#ffffff
 
-    Person(analyst, "Аналитик", "Рецензирует ТЗ, генерирует URS/SRS/ADR, считает экономику")
-    Person(architect, "Архитектор", "Проектирует архитектуру, настраивает AI-провайдеры")
-    Person(admin, "Администратор", "Управляет пользователями и демо-данными")
+    analyst(["Аналитик<br/>рецензирует ТЗ, генерирует URS/SRS/ADR, считает экономику"])
+    architect(["Архитектор<br/>проектирует архитектуру, настраивает AI-провайдеры"])
+    admin(["Администратор<br/>управляет пользователями и демо-данными"])
 
-    System(ag, "Analyst-Architect-AI", "AI-копилот для системного аналитика и архитектора")
+    ag["Analyst-Architect-AI<br/>AI-копилот для системного аналитика и архитектора"]
 
-    System_Ext(claude, "Anthropic Claude", "LLM по умолчанию (claude-sonnet-4)")
-    System_Ext(openai, "OpenAI", "gpt-4o")
-    System_Ext(proxyapi, "ProxyAPI", "OpenAI-совместимый RU-прокси")
-    System_Ext(openrouter, "OpenRouter", "Шлюз к 200+ моделям")
-    System_Ext(ollama, "Ollama", "Локальный LLM (air-gapped, qwen2.5)")
-    System_Ext(kroki, "Kroki", "Локальный рендер PlantUML/Mermaid → SVG/PNG")
+    claude["Anthropic Claude<br/>LLM по умолчанию (claude-sonnet-4)"]
+    openai["OpenAI<br/>gpt-4o"]
+    proxyapi["ProxyAPI<br/>OpenAI-совместимый RU-прокси"]
+    openrouter["OpenRouter<br/>шлюз к 200+ моделям"]
+    ollama["Ollama<br/>локальный LLM (air-gapped, qwen2.5)"]
+    kroki["Kroki<br/>локальный рендер PlantUML/Mermaid → SVG/PNG"]
 
-    Rel(analyst, ag, "Работает с документами, рецензиями, экономикой")
-    Rel(architect, ag, "Архитектура, диаграммы, настройки LLM")
-    Rel(admin, ag, "Пользователи, seed-данные")
-    Rel(ag, claude, "Вызывает LLM API", "HTTPS/REST")
-    Rel(ag, openai, "Вызывает LLM API (опционально)", "HTTPS/REST")
-    Rel(ag, proxyapi, "RU-прокси (опционально)", "HTTPS/REST")
-    Rel(ag, openrouter, "Шлюз (опционально)", "HTTPS/REST")
-    Rel(ag, ollama, "Локальный LLM (без выхода в интернет)", "HTTP :11434")
-    Rel(ag, kroki, "Рендер диаграмм (без выхода в интернет)", "HTTP :8001")
+    analyst -->|"документы, рецензии, экономика"| ag
+    architect -->|"архитектура, диаграммы, настройки LLM"| ag
+    admin -->|"пользователи, seed-данные"| ag
+    ag -->|"Вызывает LLM API · HTTPS/REST"| claude
+    ag -->|"Вызывает LLM API (опционально) · HTTPS/REST"| openai
+    ag -->|"RU-прокси (опционально) · HTTPS/REST"| proxyapi
+    ag -->|"Шлюз (опционально) · HTTPS/REST"| openrouter
+    ag -->|"Локальный LLM без выхода в интернет · HTTP :11434"| ollama
+    ag -->|"Рендер диаграмм без выхода в интернет · HTTP :8001"| kroki
 
-    UpdateRelConfig(ag, claude, "При ENFORCE_LOCAL_ONLY=true — заблокирован")
-    UpdateRelConfig(ag, openai, "При ENFORCE_LOCAL_ONLY=true — заблокирован")
+    class analyst,architect,admin person
+    class ag sys
+    class claude,openai,proxyapi,openrouter,ollama,kroki ext
 ```
+
+> При `ENFORCE_LOCAL_ONLY=true` вызовы облачных LLM (Anthropic/OpenAI) из этой схемы заблокированы.
 
 ### C4 Level 2 — Контейнеры
 
 ```mermaid
-C4Container
-    title Analyst-Architect-AI — Контейнеры
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef cont fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef storage fill:#999999,stroke:#666666,color:#ffffff
+    classDef ext fill:#a0a0a0,stroke:#666666,color:#ffffff,stroke-width:1px
 
-    Person(user, "Пользователь", "analyst / architect / admin")
+    user(["Пользователь<br/>analyst / architect / admin"])
 
-    Container_Boundary(spa, "Клиент") {
-        Container(frontend, "React SPA", "React 18 + TS + Vite + Tailwind", "Тёмная тема, JWT в localStorage, i18n RU/EN, экраны: документы, рецензии, batch, KB, экономика, диаграммы")
-    }
+    subgraph spa["Клиент"]
+        frontend["React SPA<br/>React 18 + TS + Vite + Tailwind<br/>тёмная тема, JWT в localStorage, i18n RU/EN, экраны: документы, рецензии, batch, KB, экономика, диаграммы"]
+    end
 
-    Container_Boundary(server, "Сервер (Docker Compose)") {
-        Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 роутеров, JWT+RBAC, AI-операции, детерминированная экономика, with_audit()")
-        ContainerDb(db, "База данных", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 моделей: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_* и др.")
-        Container(faiss, "FAISS-индексы", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items")
-        Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Локальный рендер PlantUML/Mermaid/GraphViz → SVG/PNG")
-    }
+    subgraph server["Сервер (Docker Compose)"]
+        backend["FastAPI<br/>Python 3.11 + SQLAlchemy async + Pydantic v2<br/>15 роутеров, JWT+RBAC, AI-операции, детерминированная экономика, with_audit()"]
+        db[("База данных<br/>SQLite (aiosqlite) / PostgreSQL (asyncpg)<br/>25 моделей: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_* и др.")]
+        faiss["FAISS-индексы<br/>faiss-cpu + sentence-transformers<br/>in-memory IndexFlatIP: KB-snippets + memory_items"]
+        kroki_c["Kroki<br/>yuzutech/kroki:0.25<br/>локальный рендер PlantUML/Mermaid/GraphViz → SVG/PNG"]
+    end
 
-    System_Ext(ollama_c, "Ollama", "Локальный LLM (профиль local-llm)")
-    System_Ext(llm, "Облачные LLM", "Anthropic / OpenAI / ProxyAPI / OpenRouter")
+    ollama_c["Ollama<br/>локальный LLM (профиль local-llm)"]
+    llm["Облачные LLM<br/>Anthropic / OpenAI / ProxyAPI / OpenRouter"]
 
-    Rel(user, frontend, "Браузер", "HTTPS :3000")
-    Rel(frontend, backend, "REST API + JWT Bearer", "HTTP/JSON :8000")
-    Rel(backend, db, "Async-запросы", "SQLAlchemy")
-    Rel(backend, faiss, "Гибридный поиск", "IndexFlatIP, cosine")
-    Rel(backend, kroki_c, "Рендер диаграмм", "HTTP :8001")
-    Rel(backend, ollama_c, "Локальный LLM (air-gapped)", "HTTP :11434")
-    Rel(backend, llm, "AI-вызовы (блок. при ENFORCE_LOCAL_ONLY)", "HTTPS/REST")
+    user -->|"браузер · HTTPS :3000"| frontend
+    frontend -->|"REST API + JWT Bearer · HTTP/JSON :8000"| backend
+    backend -->|"async-запросы · SQLAlchemy"| db
+    backend -->|"гибридный поиск · IndexFlatIP, cosine"| faiss
+    backend -->|"рендер диаграмм · HTTP :8001"| kroki_c
+    backend -->|"локальный LLM (air-gapped) · HTTP :11434"| ollama_c
+    backend -->|"AI-вызовы (блок. при ENFORCE_LOCAL_ONLY) · HTTPS/REST"| llm
+
+    class user person
+    class frontend,backend,faiss,kroki_c cont
+    class db storage
+    class ollama_c,llm ext
 ```
 
 ### C4 Level 3 — Компоненты Backend
 
 ```mermaid
-C4Component
-    title Компоненты Backend (FastAPI)
+flowchart LR
+    classDef router fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef svc fill:#438dd5,stroke:#1168bd,color:#ffffff
+    classDef storage fill:#999999,stroke:#666666,color:#ffffff
 
-    Container_Boundary(api, "FastAPI Application") {
-        Component(auth_r, "Auth Router", "JWT + bcrypt", "Логин, профиль, управление пользователями")
-        Component(deps, "Auth Dependencies", "OAuth2PasswordBearer", "require_analyst / require_architect / require_admin")
+    subgraph api["FastAPI Application"]
+        direction TB
+        auth_r["Auth Router · JWT + bcrypt<br/>логин, профиль, управление пользователями"]
+        deps["Auth Dependencies · OAuth2PasswordBearer<br/>require_analyst / require_architect / require_admin"]
+        docs_r["Documents Router · FastAPI<br/>CRUD документов, URS/SRS/ADR/API, рецензии, экспорт"]
+        batch_r["Batch Reviews Router · FastAPI<br/>пакетная рецензия до 50 ТЗ"]
+        kb_r["KB Router · FastAPI<br/>база знаний, RAG-поиск, автоиндексация"]
+        mem_r["Memory Router · FastAPI<br/>5-типовой фреймворк памяти"]
+        diag_r["Diagrams Router · FastAPI<br/>C4/UML/ERD, версионирование + rollback"]
+        std_r["Standards Router · FastAPI<br/>ГОСТ 34 / ISO 29148 / IEEE 830"]
+        risk_r["Risk Catalog Router · FastAPI<br/>CRUD рисков"]
+        less_r["Lessons Router · FastAPI<br/>уроки проектов"]
+        econ_r["Build Projects Router · FastAPI<br/>экономика: CAPEX/OPEX/ROI"]
+        dash_r["Dashboard Router · FastAPI<br/>статистика, actual-usage"]
+        audit_r["Audit Router · FastAPI<br/>просмотр аудит-журнала"]
+        settings_r["Settings Router · FastAPI (любая роль)<br/>настройки 5 AI-провайдеров: ключ, детекция, тест, активация"]
+        ai_rev["AI Reviewer · Python<br/>рецензия ТЗ, reasoning modes (direct/cot/react), safe_fallback"]
+        rag["RAG Engine · sentence-transformers + FAISS<br/>гибридный поиск (keyword 40% + semantic 60%)"]
+        diag_eng["Diagram Engine · Python<br/>генерация + Kroki-рендер, версионирование"]
+        econ_svc["Economics Service · Python<br/>CAPEX/OPEX/ROI/payback — детерминированно"]
+        task_est["Task Estimator · Python + LLM<br/>AI-декомпозиция требований в часы по ролям"]
+        audit_svc["Audit Service · Python<br/>with_audit(): провенанс всех AI-операций"]
+    end
 
-        Component(docs_r, "Documents Router", "FastAPI", "CRUD документов, URS/SRS/ADR/API, рецензии, экспорт")
-        Component(batch_r, "Batch Reviews Router", "FastAPI", "Пакетная рецензия до 50 ТЗ")
-        Component(kb_r, "KB Router", "FastAPI", "База знаний, RAG-поиск, автоиндексация")
-        Component(mem_r, "Memory Router", "FastAPI", "5-типовой фреймворк памяти")
-        Component(diag_r, "Diagrams Router", "FastAPI", "C4/UML/ERD, версионирование + rollback")
-        Component(std_r, "Standards Router", "FastAPI", "ГОСТ 34 / ISO 29148 / IEEE 830")
-        Component(risk_r, "Risk Catalog Router", "FastAPI", "CRUD рисков")
-        Component(less_r, "Lessons Router", "FastAPI", "Уроки проектов")
-        Component(econ_r, "Build Projects Router", "FastAPI", "Экономика: CAPEX/OPEX/ROI")
-        Component(dash_r, "Dashboard Router", "FastAPI", "Статистика, actual-usage")
-        Component(audit_r, "Audit Router", "FastAPI", "Просмотр аудит-журнала")
-        Component(settings_r, "Settings Router", "FastAPI (любая роль)", "Настройки 5 AI-провайдеров: ключ, детекция, тест, активация")
+    db[("База данных<br/>SQLite/PostgreSQL")]
+    faiss["FAISS · in-memory<br/>IndexFlatIP для KB + memory"]
 
-        Component(ai_rev, "AI Reviewer", "Python", "Рецензия ТЗ, reasoning modes (direct/cot/react), safe_fallback")
-        Component(rag, "RAG Engine", "sentence-transformers + FAISS", "Гибридный поиск (keyword 40% + semantic 60%)")
-        Component(diag_eng, "Diagram Engine", "Python", "Генерация + Kroki-рендер, версионирование")
-        Component(econ_svc, "Economics Service", "Python", "CAPEX/OPEX/ROI/payback — детерминированно")
-        Component(task_est, "Task Estimator", "Python + LLM", "AI-декомпозиция требований в часы по ролям")
-        Component(audit_svc, "Audit Service", "Python", "with_audit(): провенанс всех AI-операций")
-    }
+    docs_r -->|"JWT + роль"| deps
+    batch_r -->|"JWT + роль"| deps
+    settings_r -->|"любая роль (admin / analyst / architect)"| deps
+    docs_r -->|"запуск рецензии"| ai_rev
+    batch_r -->|"пакетная рецензия"| ai_rev
+    kb_r -->|"RAG-поиск"| rag
+    rag -->|"semantic-поиск"| faiss
+    diag_r -->|"генерация + рендер"| diag_eng
+    econ_r -->|"расчёт экономики"| econ_svc
+    econ_r -->|"декомпозиция задач"| task_est
+    ai_rev -->|"with_audit()"| audit_svc
+    econ_svc -->|"факт LLM-расходов"| audit_svc
+    audit_svc -->|"сохраняет audit_runs"| db
 
-    ComponentDb(db, "База данных", "SQLite/PostgreSQL")
-    ComponentQueue(faiss_q, "FAISS", "in-memory", "IndexFlatIP для KB + memory")
-
-    Rel(docs_r, deps, "Проверка JWT + роль")
-    Rel(batch_r, deps, "Проверка JWT + роль")
-    Rel(settings_r, deps, "Требует любую роль (admin|analyst|architect)")
-    Rel(docs_r, ai_rev, "Запуск рецензии")
-    Rel(batch_r, ai_rev, "Пакетная рецензия")
-    Rel(kb_r, rag, "RAG-поиск")
-    Rel(rag, faiss_q, "Semantic-поиск")
-    Rel(diag_r, diag_eng, "Генерация + рендер")
-    Rel(econ_r, econ_svc, "Расчёт экономики")
-    Rel(econ_r, task_est, "Декомпозиция задач")
-    Rel(ai_rev, audit_svc, "with_audit()")
-    Rel(econ_svc, audit_svc, "Факт LLM-расходов")
-    Rel(audit_svc, db, "Сохраняет audit_runs")
+    class auth_r,deps,docs_r,batch_r,kb_r,mem_r,diag_r,std_r,risk_r,less_r,econ_r,dash_r,audit_r,settings_r router
+    class ai_rev,rag,diag_eng,econ_svc,task_est,audit_svc svc
+    class db,faiss storage
 ```
 
 ### C4 Level 4 — Code: AI Reviewer + Audit (ядро системы)

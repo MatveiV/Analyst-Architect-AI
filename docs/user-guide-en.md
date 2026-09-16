@@ -63,114 +63,132 @@ Access to the system requires **mandatory username/password authentication** (JW
 ### C4 Level 1 — System Context
 
 ```mermaid
-C4Context
-    title Analyst-Architect-AI — System Context
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef sys fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef ext fill:#999999,stroke:#666666,color:#ffffff
 
-    Person(analyst, "Analyst", "Reviews specs, generates URS/SRS/ADR, runs economics")
-    Person(architect, "Architect", "Designs architecture, configures AI providers")
-    Person(admin, "Administrator", "Manages users and demo data")
+    analyst(["Analyst<br/>reviews specs, generates URS/SRS/ADR, runs economics"])
+    architect(["Architect<br/>designs architecture, configures AI providers"])
+    admin(["Administrator<br/>manages users and demo data"])
 
-    System(ag, "Analyst-Architect-AI", "AI copilot for system analysts and solution architects")
+    ag["Analyst-Architect-AI<br/>AI copilot for system analysts and solution architects"]
 
-    System_Ext(claude, "Anthropic Claude", "Default LLM (claude-sonnet-4)")
-    System_Ext(openai, "OpenAI", "gpt-4o")
-    System_Ext(proxyapi, "ProxyAPI", "OpenAI-compatible RU proxy")
-    System_Ext(openrouter, "OpenRouter", "Gateway to 200+ models")
-    System_Ext(ollama, "Ollama", "Local LLM (air-gapped, qwen2.5)")
-    System_Ext(kroki, "Kroki", "Local PlantUML/Mermaid render → SVG/PNG")
+    claude["Anthropic Claude<br/>default LLM (claude-sonnet-4)"]
+    openai["OpenAI<br/>gpt-4o"]
+    proxyapi["ProxyAPI<br/>OpenAI-compatible RU proxy"]
+    openrouter["OpenRouter<br/>gateway to 200+ models"]
+    ollama["Ollama<br/>local LLM (air-gapped, qwen2.5)"]
+    kroki["Kroki<br/>local PlantUML/Mermaid render → SVG/PNG"]
 
-    Rel(analyst, ag, "Documents, reviews, economics")
-    Rel(architect, ag, "Architecture, diagrams, LLM settings")
-    Rel(admin, ag, "Users, seed data")
-    Rel(ag, claude, "Calls LLM API", "HTTPS/REST")
-    Rel(ag, openai, "Calls LLM API (optional)", "HTTPS/REST")
-    Rel(ag, proxyapi, "RU proxy (optional)", "HTTPS/REST")
-    Rel(ag, openrouter, "Gateway (optional)", "HTTPS/REST")
-    Rel(ag, ollama, "Local LLM (no internet)", "HTTP :11434")
-    Rel(ag, kroki, "Diagram render (no internet)", "HTTP :8001")
+    analyst -->|"documents, reviews, economics"| ag
+    architect -->|"architecture, diagrams, LLM settings"| ag
+    admin -->|"users, seed data"| ag
+    ag -->|"Calls LLM API · HTTPS/REST"| claude
+    ag -->|"Calls LLM API (optional) · HTTPS/REST"| openai
+    ag -->|"RU proxy (optional) · HTTPS/REST"| proxyapi
+    ag -->|"Gateway (optional) · HTTPS/REST"| openrouter
+    ag -->|"Local LLM (no internet) · HTTP :11434"| ollama
+    ag -->|"Diagram render (no internet) · HTTP :8001"| kroki
 
-    UpdateRelConfig(ag, claude, "Blocked when ENFORCE_LOCAL_ONLY=true")
-    UpdateRelConfig(ag, openai, "Blocked when ENFORCE_LOCAL_ONLY=true")
+    class analyst,architect,admin person
+    class ag sys
+    class claude,openai,proxyapi,openrouter,ollama,kroki ext
 ```
+
+> When `ENFORCE_LOCAL_ONLY=true`, cloud LLM calls (Anthropic/OpenAI) in this diagram are blocked.
 
 ### C4 Level 2 — Containers
 
 ```mermaid
-C4Container
-    title Analyst-Architect-AI — Containers
+flowchart LR
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef cont fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef storage fill:#999999,stroke:#666666,color:#ffffff
+    classDef ext fill:#a0a0a0,stroke:#666666,color:#ffffff,stroke-width:1px
 
-    Person(user, "User", "analyst / architect / admin")
+    user(["User<br/>analyst / architect / admin"])
 
-    Container_Boundary(spa, "Client") {
-        Container(frontend, "React SPA", "React 18 + TS + Vite + Tailwind", "Dark theme, JWT in localStorage, i18n RU/EN, screens: documents, reviews, batch, KB, economics, diagrams")
-    }
+    subgraph spa["Client"]
+        frontend["React SPA<br/>React 18 + TS + Vite + Tailwind<br/>dark theme, JWT in localStorage, i18n RU/EN, screens: documents, reviews, batch, KB, economics, diagrams"]
+    end
 
-    Container_Boundary(server, "Server (Docker Compose)") {
-        Container(backend, "FastAPI", "Python 3.11 + SQLAlchemy async + Pydantic v2", "15 routers, JWT+RBAC, AI ops, deterministic economics, with_audit()")
-        ContainerDb(db, "Database", "SQLite (aiosqlite) / PostgreSQL (asyncpg)", "25 models: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_*, etc.")
-        Container(faiss, "FAISS indices", "faiss-cpu + sentence-transformers", "In-memory IndexFlatIP: KB-snippets + memory_items")
-        Container(kroki_c, "Kroki", "yuzutech/kroki:0.25", "Local PlantUML/Mermaid/GraphViz render → SVG/PNG")
-    }
+    subgraph server["Server (Docker Compose)"]
+        backend["FastAPI<br/>Python 3.11 + SQLAlchemy async + Pydantic v2<br/>15 routers, JWT+RBAC, AI ops, deterministic economics, with_audit()"]
+        db[("Database<br/>SQLite (aiosqlite) / PostgreSQL (asyncpg)<br/>25 models: users, spec_documents, kb_documents, kb_snippets, reviews, qa_runs, audit_runs, build_projects, economic_*, etc.")]
+        faiss["FAISS indices<br/>faiss-cpu + sentence-transformers<br/>in-memory IndexFlatIP: KB-snippets + memory_items"]
+        kroki_c["Kroki<br/>yuzutech/kroki:0.25<br/>local PlantUML/Mermaid/GraphViz render → SVG/PNG"]
+    end
 
-    System_Ext(ollama_c, "Ollama", "Local LLM (local-llm profile)")
-    System_Ext(llm, "Cloud LLMs", "Anthropic / OpenAI / ProxyAPI / OpenRouter")
+    ollama_c["Ollama<br/>local LLM (local-llm profile)"]
+    llm["Cloud LLMs<br/>Anthropic / OpenAI / ProxyAPI / OpenRouter"]
 
-    Rel(user, frontend, "Browser", "HTTPS :3000")
-    Rel(frontend, backend, "REST API + JWT Bearer", "HTTP/JSON :8000")
-    Rel(backend, db, "Async queries", "SQLAlchemy")
-    Rel(backend, faiss, "Hybrid search", "IndexFlatIP, cosine")
-    Rel(backend, kroki_c, "Diagram render", "HTTP :8001")
-    Rel(backend, ollama_c, "Local LLM (air-gapped)", "HTTP :11434")
-    Rel(backend, llm, "AI calls (blocked when ENFORCE_LOCAL_ONLY)", "HTTPS/REST")
+    user -->|"browser · HTTPS :3000"| frontend
+    frontend -->|"REST API + JWT Bearer · HTTP/JSON :8000"| backend
+    backend -->|"async queries · SQLAlchemy"| db
+    backend -->|"hybrid search · IndexFlatIP, cosine"| faiss
+    backend -->|"diagram render · HTTP :8001"| kroki_c
+    backend -->|"local LLM (air-gapped) · HTTP :11434"| ollama_c
+    backend -->|"AI calls (blocked when ENFORCE_LOCAL_ONLY) · HTTPS/REST"| llm
+
+    class user person
+    class frontend,backend,faiss,kroki_c cont
+    class db storage
+    class ollama_c,llm ext
 ```
 
 ### C4 Level 3 — Backend Components
 
 ```mermaid
-C4Component
-    title Backend Components (FastAPI)
+flowchart LR
+    classDef router fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef svc fill:#438dd5,stroke:#1168bd,color:#ffffff
+    classDef storage fill:#999999,stroke:#666666,color:#ffffff
 
-    Container_Boundary(api, "FastAPI Application") {
-        Component(auth_r, "Auth Router", "JWT + bcrypt", "Login, profile, user management")
-        Component(deps, "Auth Dependencies", "OAuth2PasswordBearer", "require_analyst / require_architect / require_admin")
+    subgraph api["FastAPI Application"]
+        direction TB
+        auth_r["Auth Router · JWT + bcrypt<br/>login, profile, user management"]
+        deps["Auth Dependencies · OAuth2PasswordBearer<br/>require_analyst / require_architect / require_admin"]
+        docs_r["Documents Router · FastAPI<br/>document CRUD, URS/SRS/ADR/API, reviews, export"]
+        batch_r["Batch Reviews Router · FastAPI<br/>batch review up to 50 specs"]
+        kb_r["KB Router · FastAPI<br/>knowledge base, RAG search, auto-indexing"]
+        mem_r["Memory Router · FastAPI<br/>5-type memory framework"]
+        diag_r["Diagrams Router · FastAPI<br/>C4/UML/ERD, versioning + rollback"]
+        std_r["Standards Router · FastAPI<br/>GOST 34 / ISO 29148 / IEEE 830"]
+        risk_r["Risk Catalog Router · FastAPI<br/>risk CRUD"]
+        less_r["Lessons Router · FastAPI<br/>project lessons"]
+        econ_r["Build Projects Router · FastAPI<br/>economics: CAPEX/OPEX/ROI"]
+        dash_r["Dashboard Router · FastAPI<br/>stats, actual-usage"]
+        audit_r["Audit Router · FastAPI<br/>audit log viewer"]
+        settings_r["Settings Router · FastAPI (any authenticated role)<br/>5 AI provider settings: key, detect, test, activate"]
+        ai_rev["AI Reviewer · Python<br/>spec review, reasoning modes (direct/cot/react), safe_fallback"]
+        rag["RAG Engine · sentence-transformers + FAISS<br/>hybrid search (keyword 40% + semantic 60%)"]
+        diag_eng["Diagram Engine · Python<br/>generation + Kroki render, versioning"]
+        econ_svc["Economics Service · Python<br/>CAPEX/OPEX/ROI/payback — deterministic"]
+        task_est["Task Estimator · Python + LLM<br/>AI decomposition of requirements to role-hours"]
+        audit_svc["Audit Service · Python<br/>with_audit(): provenance of all AI ops"]
+    end
 
-        Component(docs_r, "Documents Router", "FastAPI", "Document CRUD, URS/SRS/ADR/API, reviews, export")
-        Component(batch_r, "Batch Reviews Router", "FastAPI", "Batch review up to 50 specs")
-        Component(kb_r, "KB Router", "FastAPI", "Knowledge base, RAG search, auto-indexing")
-        Component(mem_r, "Memory Router", "FastAPI", "5-type memory framework")
-        Component(diag_r, "Diagrams Router", "FastAPI", "C4/UML/ERD, versioning + rollback")
-        Component(std_r, "Standards Router", "FastAPI", "GOST 34 / ISO 29148 / IEEE 830")
-        Component(risk_r, "Risk Catalog Router", "FastAPI", "Risk CRUD")
-        Component(less_r, "Lessons Router", "FastAPI", "Project lessons")
-        Component(econ_r, "Build Projects Router", "FastAPI", "Economics: CAPEX/OPEX/ROI")
-        Component(dash_r, "Dashboard Router", "FastAPI", "Stats, actual-usage")
-        Component(audit_r, "Audit Router", "FastAPI", "Audit log viewer")
-        Component(settings_r, "Settings Router", "FastAPI (any authenticated role)", "5 AI provider settings: key, detect, test, activate")
+    db[("Database<br/>SQLite / PostgreSQL")]
+    faiss["FAISS · in-memory<br/>IndexFlatIP for KB + memory"]
 
-        Component(ai_rev, "AI Reviewer", "Python", "Spec review, reasoning modes (direct/cot/react), safe_fallback")
-        Component(rag, "RAG Engine", "sentence-transformers + FAISS", "Hybrid search (keyword 40% + semantic 60%)")
-        Component(diag_eng, "Diagram Engine", "Python", "Generation + Kroki render, versioning")
-        Component(econ_svc, "Economics Service", "Python", "CAPEX/OPEX/ROI/payback — deterministic")
-        Component(task_est, "Task Estimator", "Python + LLM", "AI decomposition of requirements to role-hours")
-        Component(audit_svc, "Audit Service", "Python", "with_audit(): provenance of all AI ops")
-    }
+    docs_r -->|"validates JWT + role"| deps
+    batch_r -->|"validates JWT + role"| deps
+    settings_r -->|"any authenticated role (admin / analyst / architect)"| deps
+    docs_r -->|"trigger review"| ai_rev
+    batch_r -->|"batch review"| ai_rev
+    kb_r -->|"RAG search"| rag
+    rag -->|"semantic search"| faiss
+    diag_r -->|"generate + render"| diag_eng
+    econ_r -->|"economics calc"| econ_svc
+    econ_r -->|"task decomposition"| task_est
+    ai_rev -->|"with_audit()"| audit_svc
+    econ_svc -->|"actual LLM cost"| audit_svc
+    audit_svc -->|"saves audit_runs"| db
 
-    ComponentDb(db, "Database", "SQLite/PostgreSQL")
-    ComponentQueue(faiss_q, "FAISS", "in-memory", "IndexFlatIP for KB + memory")
-
-    Rel(docs_r, deps, "Validates JWT + role")
-    Rel(batch_r, deps, "Validates JWT + role")
-    Rel(settings_r, deps, "Requires any role (admin|analyst|architect)")
-    Rel(docs_r, ai_rev, "Trigger review")
-    Rel(batch_r, ai_rev, "Batch review")
-    Rel(kb_r, rag, "RAG search")
-    Rel(rag, faiss_q, "Semantic search")
-    Rel(diag_r, diag_eng, "Generate + render")
-    Rel(econ_r, econ_svc, "Economics calc")
-    Rel(econ_r, task_est, "Task decomposition")
-    Rel(ai_rev, audit_svc, "with_audit()")
-    Rel(econ_svc, audit_svc, "Actual LLM cost")
-    Rel(audit_svc, db, "Saves audit_runs")
+    class auth_r,deps,docs_r,batch_r,kb_r,mem_r,diag_r,std_r,risk_r,less_r,econ_r,dash_r,audit_r,settings_r router
+    class ai_rev,rag,diag_eng,econ_svc,task_est,audit_svc svc
+    class db,faiss storage
 ```
 
 ### C4 Level 4 — Code: AI Reviewer + Audit (system core)
