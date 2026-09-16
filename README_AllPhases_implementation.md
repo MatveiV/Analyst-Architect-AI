@@ -231,7 +231,7 @@ npm run build                     # production build проходит чисто
 | C1 | `_call_openai_compat(force_json=True)` реально передаёт `extra_body={"format": "json"}` (проверено мок-перехватом kwargs); при `force_json=False` — не передаёт |
 | C1 | `_call_ollama()` retry: пустой первый ответ → ровно один повторный вызов с явной инструкцией "ТОЛЬКО валидный JSON"; если и второй пуст — отдаёт пустую строку (вызывающая сторона уходит в safe_fallback) |
 | C3 | `with_audit()` пишет `provider_used`/`is_local_provider` и при успехе, и при исключении |
-| C4 | `POST /settings/providers` + `POST /settings/test?provider=ollama` + `GET /settings/providers/ollama/models` — все три дают аккуратную ошибку (не 500) при недоступном сервисе; требуют `admin_auth_headers` (require_architect) |
+| C4 | `POST /settings/providers` + `POST /settings/test` + `GET /settings/providers/ollama/models` — все три дают аккуратную ошибку (не 500) при недоступном сервисе; доступны любому аутентифицированному пользователю (require_analyst) |
 | C5 | Прямой мок-тест: недоступный Kroki + `ENFORCE_LOCAL_ONLY=true` → `blocked_external`; `=false` → `external_fallback` — оба пути проверены в одном тесте |
 | C6 | `GET /dashboard/stats-by-provider` — агрегация по уникальным provider-маркерам (чтобы не зависеть от состояния общей тестовой БД), проверены `needs_review_rate_pct`/`is_local` |
 

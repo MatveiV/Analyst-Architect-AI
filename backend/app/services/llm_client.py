@@ -151,14 +151,16 @@ async def call_llm(prompt: str, system: str = "") -> str:
 async def _call_ollama(prompt: str, system: str, cfg: dict) -> str:
     """
     Эпик C1: Ollama отдаёт OpenAI-совместимый /v1/chat/completions — переиспользуем
-    _call_openai_compat(), но принудительно включаем JSON-режим (constrained decoding),
-    т.к. локальные модели заметно хуже держат формат, чем облачные.
+    _call_openai_compat(), но принудительно включаем JSON-режим (response_format +
+    format=json), т.к. локальные модели заметно хуже держат формат, чем облачные.
 
-    Если первый ответ пустой/невалидный — один explicit retry с более прямой инструкцией,
-    прежде чем сервис-вызывающая сторона откатится на safe_fallback_*.
+    Если ответ пустой ИЛИ не парсится как JSON — один explicit retry с более прямой
+    инструкцией, прежде чем сервис-вызывающая сторона откатится на safe_fallback_*.
+    (Проверено на qwen2.5:7b: часть ответов приходит с текстом вокруг JSON — такой
+    ответ retry исправляет, и `needs_review` не выставляется зря.)
     """
     text = await _call_openai_compat(prompt, system, cfg, force_json=True)
-    if text and text.strip():
+    if text and text.strip() and _is_parseable_json(text):
         return text
 
     retry_system = (
@@ -168,10 +170,22 @@ async def _call_ollama(prompt: str, system: str, cfg: dict) -> str:
     return await _call_openai_compat(prompt, retry_system, cfg, force_json=True)
 
 
+def _is_parseable_json(raw: str) -> bool:
+    """True, если ответ модели (после extract_json-очистки) — валидный JSON-объект/массив."""
+    clean = extract_json(raw)
+    if not clean:
+        return False
+    try:
+        json.loads(clean, strict=False)
+        return True
+    except (json.JSONDecodeError, ValueError):
+        return False
+
+
 async def _call_anthropic(prompt: str, system: str, cfg: dict) -> str:
     """Асинхронный вызов Anthropic (НЕ блокирует event loop)."""
     import anthropic
-    client = anthropic.AsyncAnthropic(api_key=cfg["api_key"], timeout=120)
+    client = anthropic.AsyncAnthropic(api_key=cfg["api_key"], timeout=settings.LLM_TIMEOUT)
     model = cfg["model"] or settings.LLM_MODEL_ANTHROPIC
     response = await client.messages.create(
         model=model,
@@ -203,7 +217,7 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: b
     """
     from openai import AsyncOpenAI
 
-    client_kwargs: dict = {"api_key": cfg["api_key"], "timeout": 120}
+    client_kwargs: dict = {"api_key": cfg["api_key"], "timeout": settings.LLM_TIMEOUT}
     if cfg.get("base_url"):
         client_kwargs["base_url"] = cfg["base_url"]
 
@@ -221,6 +235,14 @@ async def _call_openai_compat(prompt: str, system: str, cfg: dict, force_json: b
     model = cfg["model"] or (settings.LLM_MODEL_OPENROUTER if cfg.get("provider") == "openrouter" else settings.LLM_MODEL_OPENAI)
     extra_kwargs: dict = {}
     if force_json:
+        # Проверено на ollama 0.34: OpenAI-совместимый эндпоинт (/v1/chat/completions)
+        # ИГНОРИРУЕТ поле `format` из extra_body — constrained decoding не включался,
+        # из-за чего локальная модель чаще отдавала невалидный JSON (и запрос уходил
+        # в safe_fallback с needs_review=true). Рабочий параметр для этого эндпоинта —
+        # стандартный `response_format: {"type": "json_object"}`.
+        # `extra_body` оставлен для совместимости с прокси/провайдерами, которым нужен
+        # именно `format=json` (нативный API Ollama).
+        extra_kwargs["response_format"] = {"type": "json_object"}
         extra_kwargs["extra_body"] = {"format": "json"}
 
     async with AsyncOpenAI(**client_kwargs) as client:

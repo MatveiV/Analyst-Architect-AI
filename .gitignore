@@ -24,6 +24,8 @@ data/
 .vite/
 .pids/
 .zcode/
+_srvf.*
+_final.*
 
 # Build / release artifacts (not source)
 _tmp_*

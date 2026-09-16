@@ -3,8 +3,16 @@ import { addKBDocument, listKBDocuments, askKB, getQAHistory, reindexKB } from '
 import { SectionHeader, EmptyState, Spinner, NeedsReviewBadge, Tabs, toast } from '../components/ui';
 import { useI18n } from '../i18n';
 
-interface KBDoc { id: string; title: string; created_at: string; source_type?: string | null; }
-interface QARun { id: string; question: string; answer: string; sources_json: string; needs_review: boolean; created_at: string; }
+interface KBDoc { id: string; title: string; text: string; created_at: string; source_type?: string | null; }
+interface QARun { id: string; question: string; answer: string; sources_json: string; needs_review: boolean; error?: string; created_at: string; }
+
+// Option5 §3: карточка вопроса — источники (цитаты) + причина ручной проверки.
+function parseSources(raw: string): any[] {
+  try {
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
 
 export default function KnowledgeBasePage() {
   const { t, lang } = useI18n();
@@ -19,6 +27,10 @@ export default function KnowledgeBasePage() {
   const [form, setForm] = useState({ title: '', text: '' });
   const [adding, setAdding] = useState(false);
   const [histFilter, setHistFilter] = useState<boolean | undefined>(undefined);
+  // Option5 §1: действие «Открыть документ» — текст документа или первые N строк
+  const [openDoc, setOpenDoc] = useState<string | null>(null);
+  // Option5 §3: действие «открыть карточку вопроса» (ответ + источники + причина)
+  const [openQa, setOpenQa] = useState<string | null>(null);
 
   const loadDocs = useCallback(async () => {
     try { const r = await listKBDocuments(); setDocs(r.data); } catch {}
@@ -155,20 +167,31 @@ export default function KnowledgeBasePage() {
           ) : (
             <div className="space-y-2">
               {docs.map(doc => (
-                <div key={doc.id} className="card flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent">🧠</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-white font-medium">{doc.title}</p>
-                      {doc.source_type && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border border-teal-500/30 text-teal-400 bg-teal-500/10">
-                          {{ urs: 'URS', srs: 'SRS', adr: 'ADR', diagrams: lang === 'ru' ? 'диаграммы' : 'diagrams',
-                             lesson: lang === 'ru' ? 'урок' : 'lesson' }[doc.source_type] || doc.source_type}
-                        </span>
-                      )}
+                <div key={doc.id} className="card space-y-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent">🧠</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-medium truncate">{doc.title}</p>
+                        {doc.source_type && (
+                          <span className="text-xs px-2 py-0.5 rounded-full border border-teal-500/30 text-teal-400 bg-teal-500/10">
+                            {{ urs: 'URS', srs: 'SRS', adr: 'ADR', diagrams: lang === 'ru' ? 'диаграммы' : 'diagrams',
+                               lesson: lang === 'ru' ? 'урок' : 'lesson' }[doc.source_type] || doc.source_type}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-muted">{new Date(doc.created_at).toLocaleDateString(lang === 'ru' ? 'ru' : 'en')}</p>
                     </div>
-                    <p className="text-xs text-slate-muted">{new Date(doc.created_at).toLocaleDateString(lang === 'ru' ? 'ru' : 'en')}</p>
+                    <button className="btn-ghost text-xs shrink-0"
+                      onClick={() => setOpenDoc(openDoc === doc.id ? null : doc.id)}>
+                      {openDoc === doc.id ? `▲ ${t('close')}` : `👁 ${t('kb_open_doc')}`}
+                    </button>
                   </div>
+                  {openDoc === doc.id && (
+                    <div className="bg-ink rounded-lg p-3 border border-slate-border/60 animate-fade-in">
+                      <p className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">{doc.text}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -195,18 +218,50 @@ export default function KnowledgeBasePage() {
             <EmptyState icon="🕐" title={t('kb_no_history')} subtitle={t('kb_no_hist_sub')} />
           ) : (
             <div className="space-y-3">
-              {history.map(qa => (
-                <div key={qa.id} className="card space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm text-accent font-medium">❓ {qa.question}</p>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <NeedsReviewBadge show={qa.needs_review} />
-                      <span className="text-xs text-slate-muted">{new Date(qa.created_at).toLocaleDateString(lang === 'ru' ? 'ru' : 'en')}</span>
+              {history.map(qa => {
+                const srcs = parseSources(qa.sources_json);
+                const isOpen = openQa === qa.id;
+                return (
+                  <div key={qa.id} className="card space-y-3">
+                    <div className="flex items-start justify-between gap-3 cursor-pointer"
+                      onClick={() => setOpenQa(isOpen ? null : qa.id)}>
+                      <p className="text-sm text-accent font-medium">❓ {qa.question}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {srcs.length > 0 && (
+                          <span className="text-xs text-slate-muted">📎 {srcs.length}</span>
+                        )}
+                        <NeedsReviewBadge show={qa.needs_review} />
+                        <span className="text-xs text-slate-muted">{new Date(qa.created_at).toLocaleDateString(lang === 'ru' ? 'ru' : 'en')}</span>
+                        <span className="text-slate-muted">{isOpen ? '▲' : '▼'}</span>
+                      </div>
                     </div>
+                    <p className={`text-white/80 text-sm leading-relaxed ${isOpen ? '' : 'line-clamp-2'}`}>{qa.answer}</p>
+                    {isOpen && (
+                      <div className="space-y-3 animate-fade-in">
+                        {qa.needs_review && (
+                          <div className="p-3 rounded-lg border border-yellow-500/30 bg-warn-bg">
+                            <p className="label mb-1">{t('kb_cause')}</p>
+                            <p className="text-xs text-yellow-400 font-mono">{qa.error || 'NEEDS_REVIEW'}</p>
+                          </div>
+                        )}
+                        {srcs.length > 0 && (
+                          <div>
+                            <p className="label">{t('kb_sources')} ({srcs.length})</p>
+                            <div className="space-y-2">
+                              {srcs.map((s: any, i: number) => (
+                                <div key={i} className="p-3 bg-ink rounded-lg border border-slate-border/60 text-sm">
+                                  <p className="text-accent-light text-xs mb-1">{s.document_title || s.document_id?.slice(0, 8)}</p>
+                                  <p className="text-white/70 italic">«{s.quote}»</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-white/80 text-sm leading-relaxed">{qa.answer}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

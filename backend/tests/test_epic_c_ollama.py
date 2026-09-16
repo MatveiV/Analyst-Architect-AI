@@ -274,8 +274,7 @@ async def test_stats_by_provider_endpoint_shape(client, auth_headers, db_session
 
 
 # ─── C4: settings endpoints не падают, если Ollama физически недоступна ──────
-# (POST /settings/providers и /settings/test закрыты require_architect — обычного
-# analyst-токена недостаточно, нужен admin_auth_headers)
+# (settings доступны любому аутентифицированному пользователю — admin|analyst|architect)
 
 @pytest.mark.asyncio
 async def test_ollama_test_endpoint_fails_gracefully_when_unreachable(client, admin_auth_headers):
@@ -287,10 +286,14 @@ async def test_ollama_test_endpoint_fails_gracefully_when_unreachable(client, ad
     assert resp.status_code == 200
     assert resp.json()["is_local"] is True
 
-    test_resp = await client.post("/settings/test?provider=ollama", headers=admin_auth_headers)
+    test_resp = await client.post("/settings/test", headers=admin_auth_headers, json={
+        "provider": "ollama", "api_key": "", "model": "qwen2.5:14b-instruct",
+        "base_url": "http://ollama-does-not-exist.invalid:11434/v1", "route": "",
+    })
     assert test_resp.status_code == 200
     assert test_resp.json()["status"] == "error"
     assert "detail" not in test_resp.json()  # не 500, аккуратная обработка исключения
+    assert test_resp.json()["config"]["provider"] == "ollama"
 
 
 @pytest.mark.asyncio

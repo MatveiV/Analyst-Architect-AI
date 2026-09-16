@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { listProviders, saveProvider, activateProvider, testProvider, seedExamples, listOllamaModels } from '../api';
+import { listProviders, saveProvider, activateProvider, testProvider, detectProvider, seedExamples, listOllamaModels } from '../api';
 import { SectionHeader, Spinner, toast } from '../components/ui';
 import { useI18n } from '../i18n';
 
@@ -110,6 +110,8 @@ export default function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { status: string; msg: string }>>({});
   const [forms, setForms] = useState<Record<string, any>>({});
+  const [detecting, setDetecting] = useState(false);
+  const [detectResult, setDetectResult] = useState<any>(null);
   // Эпик C4: живой список локально скачанных Ollama-моделей (не угадывание имени руками)
   const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
   const [ollamaModelsError, setOllamaModelsError] = useState(false);
@@ -138,6 +140,9 @@ export default function SettingsPage() {
   }, [t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // При переключении карточки сбрасываем результат «Определить провайдера»
+  useEffect(() => { setDetectResult(null); }, [editing]);
 
   // Эпик C4: подтягиваем реальный список скачанных моделей при открытии карточки Ollama
   useEffect(() => {
@@ -187,13 +192,26 @@ export default function SettingsPage() {
     setTesting(provider);
     setTestResults(p => ({ ...p, [provider]: { status: 'loading', msg: '' } }));
     try {
-      const res = await testProvider(provider);
+      // Отправляем текущие значения формы — можно тестировать ещё НЕ сохранённый
+      // ключ: backend берёт их первыми, а пустые поля дозаполняет из БД/дефолтов.
+      const form = forms[provider] || {};
+      const res = await testProvider({
+        provider,
+        api_key: form.api_key || '',
+        model: form.model || '',
+        base_url: form.base_url || '',
+        route: form.route || '',
+      });
       const data = res.data;
       if (data.status === 'ok') {
-        setTestResults(p => ({ ...p, [provider]: { status: 'ok', msg: data.response || 'OK' } }));
+        const cfg = data.config
+          ? ` · ${data.config.model}${data.config.base_url ? ` @ ${data.config.base_url}` : ''}`
+          : '';
+        setTestResults(p => ({ ...p, [provider]: { status: 'ok', msg: (data.response || 'OK') + cfg } }));
         toast(`${PROVIDER_META[provider]?.label}: ${t('set_test_ok')}`, 'success');
       } else {
-        setTestResults(p => ({ ...p, [provider]: { status: 'error', msg: data.error || 'Unknown error' } }));
+        const cfg = data.config ? ` · ${data.config.model}` : '';
+        setTestResults(p => ({ ...p, [provider]: { status: 'error', msg: (data.error || 'Unknown error') + cfg } }));
         toast(`${t('set_test_err')}: ${data.error?.slice(0, 80)}`, 'error');
       }
     } catch (e: any) {
@@ -201,6 +219,29 @@ export default function SettingsPage() {
       setTestResults(p => ({ ...p, [provider]: { status: 'error', msg } }));
       toast(t('set_test_err'), 'error');
     } finally { setTesting(null); }
+  };
+
+  // 🔍 Определить провайдера по введённому в форму API-ключу / Base URL
+  const handleDetect = async () => {
+    if (!editing) return;
+    const form = forms[editing] || {};
+    setDetecting(true);
+    setDetectResult(null);
+    try {
+      const res = await detectProvider({ api_key: form.api_key || '', base_url: form.base_url || '' });
+      setDetectResult(res.data);
+    } catch (e: any) {
+      setDetectResult({ error: e?.response?.data?.detail || 'Network error' });
+    } finally { setDetecting(false); }
+  };
+
+  // Переносим введённый ключ к определённому провайдеру и открываем его настройки
+  const goToDetected = (target: string) => {
+    if (!editing) return;
+    const source = forms[editing] || {};
+    setForms(p => ({ ...p, [target]: { ...(p[target] || {}), api_key: source.api_key || '' } }));
+    setEditing(target);
+    setDetectResult(null);
   };
 
   const handleSeed = async () => {
@@ -312,9 +353,9 @@ export default function SettingsPage() {
                   )}
                   <button
                     className="btn-ghost text-xs px-3 py-1.5"
-                    disabled={testing === providerKey || !hasKey}
+                    disabled={testing === providerKey}
                     onClick={() => handleTest(providerKey)}
-                    title={!hasKey ? t('set_no_key') : ''}>
+                    title={t('set_test_title')}>
                     {testing === providerKey ? <Spinner /> : t('set_test')}
                   </button>
                   <button
@@ -369,6 +410,47 @@ export default function SettingsPage() {
                         onChange={e => updateForm(providerKey, 'api_key', e.target.value)}
                         autoComplete="new-password"
                       />
+                      {/* 🔍 Определение провайдера по ключу / Base URL */}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          className="btn-ghost text-xs px-3 py-1.5"
+                          disabled={detecting || !(form.api_key || '').trim()}
+                          onClick={handleDetect}
+                          title={t('set_detect_title')}>
+                          {detecting ? <Spinner size="sm" /> : '🔍 ' + t('set_detect')}
+                        </button>
+                        {detectResult && (
+                          detectResult.error ? (
+                            <span className="text-red-400 text-xs">✗ {detectResult.error}</span>
+                          ) : detectResult.provider ? (
+                            <span className="text-xs flex items-center gap-2 flex-wrap">
+                              <span className="text-green-400">
+                                ✓ {t('set_detect_detected')}: <b className="text-white">
+                                  {PROVIDER_META[detectResult.provider]?.label || detectResult.provider}
+                                </b>
+                              </span>
+                              <span className="text-slate-muted font-mono">{detectResult.default_model}</span>
+                              {detectResult.provider !== providerKey && (
+                                <button
+                                  className="btn-primary text-xs px-2.5 py-1"
+                                  onClick={() => goToDetected(detectResult.provider)}>
+                                  {t('set_detect_go')} → {PROVIDER_META[detectResult.provider]?.label}
+                                </button>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-amber-400 text-xs">
+                              {detectResult.reason}
+                              {detectResult.candidates?.length ? ` — ${detectResult.candidates.join(', ')}` : ''}
+                            </span>
+                          )
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-muted mt-1.5">
+                        {lang === 'ru'
+                          ? 'Ключ можно проверить до сохранения: ⚡ Тест связи или 🔍 Определить провайдера.'
+                          : 'You can verify the key before saving: ⚡ Test Connection or 🔍 Detect provider.'}
+                      </p>
                     </div>
                   )}
 
@@ -510,9 +592,9 @@ export default function SettingsPage() {
         <p className="text-sm font-medium text-white mb-3">🚀 Быстрый старт / Quick start</p>
         <ol className="space-y-1.5 text-sm text-slate-muted list-decimal list-inside">
           <li>Нажмите <b className="text-white">✎ Редактировать</b> для нужного провайдера</li>
-          <li>Введите <b className="text-white">API ключ</b> и выберите модель</li>
-          <li>Нажмите <b className="text-white">⚡ Тест связи</b> для проверки</li>
-          <li>Нажмите <b className="text-white">Сделать активным</b> для переключения</li>
+          <li>Введите <b className="text-white">API ключ</b> и выберите модель. Не уверены в провайдере? Нажмите <b className="text-white">🔍 Определить провайдера</b></li>
+          <li>Нажмите <b className="text-white">⚡ Тест связи</b> — ключ проверяется сразу, до сохранения</li>
+          <li>Сохраните <b className="text-white">✓ Сохранить</b> и нажмите <b className="text-white">Сделать активным</b></li>
         </ol>
         <div className="mt-4 pt-4 border-t border-slate-border/30">
           <p className="text-sm text-slate-muted mb-2">🌱 {lang === 'ru' ? 'Демо-данные' : 'Demo Data'}</p>

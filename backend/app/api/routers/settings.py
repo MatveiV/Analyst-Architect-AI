@@ -5,7 +5,10 @@ GET  /settings/providers          — список всех сохранённы
 POST /settings/providers          — сохранить / обновить настройки провайдера
 POST /settings/providers/activate — переключить активного провайдера
 GET  /settings/active             — вернуть активный провайдер для UI
-POST /settings/test               — быстрый тест подключения (ping LLM)
+POST /settings/test               — тест подключения по конфигурации из формы (с fallback на DB/env)
+POST /settings/detect             — определить провайдера по API-ключу / Base URL
+
+Доступ: любой аутентифицированный пользователь (admin | analyst | architect).
 """
 import uuid
 from datetime import datetime
@@ -19,7 +22,10 @@ import httpx
 from app.config import settings as app_settings_module
 from app.database import get_db
 from app.models.provider_settings import ProviderSettings
-from app.schemas import ProviderSettingsIn, ProviderSettingsOut, ActiveProviderOut, OllamaModelOut
+from app.schemas import (
+    ProviderSettingsIn, ProviderSettingsOut, ActiveProviderOut,
+    OllamaModelOut, ProviderTestIn, ProviderDetectIn, ProviderDetectOut,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -275,99 +281,151 @@ async def list_ollama_models(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/test")
-async def test_provider(provider: str, db: AsyncSession = Depends(get_db)):
-    """Send a minimal ping to the provider to verify API key (или доступность — для ollama)."""
+async def test_provider(body: ProviderTestIn, db: AsyncSession = Depends(get_db)):
+    """
+    Тест соединения по конфигурации, которую пользователь ввёл в форму.
+    api_key / model / base_url берутся из тела запроса первыми; если поле пустое —
+    добираются из сохранённой настройки (DB) и дефолтов. Это позволяет проверить
+    ещё НЕ сохранённый ключ сразу после ввода. Возвращает также итоговую
+    использованную конфигурацию (provider/model/base_url).
+    """
+    provider = body.provider
+
     res = await db.execute(
         select(ProviderSettings).where(ProviderSettings.provider == provider)
     )
     row = res.scalar_one_or_none()
-    if not row or (not row.api_key and provider not in LOCAL_PROVIDERS):
-        raise HTTPException(400, "No API key configured for this provider")
+
+    db_key = (row.api_key or "") if row else ""
+    api_key = (body.api_key or db_key).strip()
+    model = body.model or (row.model if row else "") or DEFAULT_MODELS.get(provider, "")
+    base_url = body.base_url or (row.base_url if row else "") or DEFAULT_BASE_URLS.get(provider, "")
+
+    config = {
+        "provider": provider,
+        "model": model,
+        "base_url": base_url,
+        "is_local": provider in LOCAL_PROVIDERS,
+    }
+
+    if provider not in LOCAL_PROVIDERS and not api_key:
+        raise HTTPException(
+            400,
+            "API key is not set. Enter it in the form or save the provider first.",
+        )
 
     try:
         if provider == "anthropic":
-            import anthropic
-            client = anthropic.Anthropic(api_key=row.api_key)
-            resp = client.messages.create(
-                model=row.model or DEFAULT_MODELS["anthropic"],
-                max_tokens=10,
-                messages=[{"role": "user", "content": "Say: OK"}],
-            )
-            return {"status": "ok", "response": resp.content[0].text[:50]}
+            from anthropic import AsyncAnthropic
 
-        elif provider == "openai":
-            from openai import OpenAI
-            client = OpenAI(
-                api_key=row.api_key,
-                base_url=row.base_url or None,
-            )
-            resp = client.chat.completions.create(
-                model=row.model or DEFAULT_MODELS["openai"],
+            client = AsyncAnthropic(api_key=api_key, base_url=base_url or None)
+            resp = await client.messages.create(
+                model=model,
                 max_tokens=10,
-                messages=[{"role": "user", "content": "Say: OK"}],
+                messages=[{"role": "user", "content": "Reply with exactly: OK"}],
             )
-            return {"status": "ok", "response": resp.choices[0].message.content[:50]}
+            text = (resp.content[0].text or "")[:50]
+            return {"status": "ok", "response": text, "config": config}
 
-        elif provider == "proxyapi":
-            from openai import OpenAI
-            client = OpenAI(
-                api_key=row.api_key,
-                base_url="https://api.proxyapi.ru/openai/v1",
-            )
-            resp = client.chat.completions.create(
-                model=row.model or DEFAULT_MODELS["proxyapi"],
+        elif provider in ("openai", "proxyapi", "openrouter"):
+            from openai import AsyncOpenAI
+
+            client_kwargs: dict = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            if provider == "openrouter":
+                route = body.route or (row.route if row else "") or "openrouter/auto"
+                client_kwargs["default_headers"] = {"X-Route": route}
+            client = AsyncOpenAI(**client_kwargs)
+            resp = await client.chat.completions.create(
+                model=model,
                 max_tokens=10,
-                messages=[{"role": "user", "content": "Say: OK"}],
+                messages=[{"role": "user", "content": "Reply with exactly: OK"}],
             )
-            return {"status": "ok", "response": resp.choices[0].message.content[:50]}
-
-        elif provider == "openrouter":
-            import httpx as _httpx
-            base = (row.base_url or DEFAULT_BASE_URLS["openrouter"]).rstrip("/")
-            key = row.api_key.strip().encode("ascii", "ignore").decode("ascii") if row.api_key else ""
-            model = row.model or "openrouter/auto"
-            async with _httpx.AsyncClient() as hc:
-                resp = await hc.post(
-                    f"{base}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": model,
-                        "max_tokens": 10,
-                        "messages": [{"role": "user", "content": "OK"}],
-                    },
-                    timeout=15,
-                )
-                data = resp.json()
-                if resp.status_code == 200 and "choices" in data:
-                    return {"status": "ok", "response": data["choices"][0]["message"]["content"][:50]}
-                err = data.get("error", {})
-                if isinstance(err, dict):
-                    err = err.get("message") or str(err)
-                else:
-                    err = str(err)
-                hint = ""
-                if resp.status_code == 403:
-                    hint = " Проверьте ограничения ключа в дашборде OpenRouter (модели/IP/бюджет)."
-                return {"status": "error", "error": f"HTTP {resp.status_code}: {err}.{hint}"}
+            text = (resp.choices[0].message.content or "")[:50]
+            return {"status": "ok", "response": text, "config": config}
 
         elif provider == "ollama":
             # Эпик C4: тест — просто пинг /api/tags, ключ не требуется.
-            base = (row.base_url or DEFAULT_BASE_URLS["ollama"]).rstrip("/")
-            tags_url = base[:-3] + "/api/tags" if base.endswith("/v1") else base + "/api/tags"
+            tags_url = base_url[:-3] + "/api/tags" if base_url.endswith("/v1") else base_url + "/api/tags"
             async with httpx.AsyncClient(timeout=5) as hc:
                 try:
                     resp = await hc.get(tags_url)
                 except httpx.RequestError as e:
                     return {"status": "error",
-                            "error": f"Ollama не отвечает на {base}: {e}. "
-                                     f"Проверьте, что сервис запущен (docker compose --profile local-llm up)."}
+                            "error": f"Ollama не отвечает на {base_url}: {e}. "
+                                     f"Проверьте, что сервис запущен (docker compose --profile local-llm up).",
+                            "config": config}
             if resp.status_code != 200:
-                return {"status": "error", "error": f"HTTP {resp.status_code} на {tags_url}"}
+                return {"status": "error", "error": f"HTTP {resp.status_code} на {tags_url}", "config": config}
             models = [m.get("name") for m in resp.json().get("models", [])]
-            return {"status": "ok", "response": f"Локальный контур доступен. Модели: {', '.join(models) or 'нет скачанных'}"}
+            return {"status": "ok",
+                    "response": f"Локальный контур доступен. Модели: {', '.join(models) or 'нет скачанных'}",
+                    "config": config}
 
     except Exception as e:
-        return {"status": "error", "error": str(e)[:300]}
+        return {"status": "error", "error": str(e)[:300], "config": config}
+
+
+def _detect_provider(api_key: str, base_url: str) -> dict:
+    """Определить провайдера по префиксу API-ключа и/или Base URL (оффлайн-эвристики)."""
+    key = (api_key or "").strip()
+    base = (base_url or "").strip().lower()
+
+    if not key and not base:
+        return {"provider": None, "confidence": "low",
+                "reason": "Введите API-ключ (или Base URL для локального сервиса), чтобы определить провайдера.",
+                "candidates": []}
+
+    # Локальный контур (Ollama) — ключ не нужен, судим по адресу
+    if not key or ("ollama" in base or "127.0.0.1" in base or "localhost" in base or "host.docker.internal" in base):
+        return {"provider": "ollama", "confidence": "high",
+                "reason": "Ключ отсутствует или указан локальный адрес — это локальный Ollama, API-ключ не требуется.",
+                "candidates": ["ollama"]}
+
+    if key.startswith("sk-ant-") or "anthropic.com" in base:
+        return {"provider": "anthropic", "confidence": "high",
+                "reason": "Ключ начинается с sk-ant- — это API-ключ Anthropic Claude.",
+                "candidates": ["anthropic"]}
+
+    if key.startswith("sk-or-") or "openrouter.ai" in base:
+        return {"provider": "openrouter", "confidence": "high",
+                "reason": "Ключ начинается с sk-or- (или указан OpenRouter) — это ключ OpenRouter.",
+                "candidates": ["openrouter"]}
+
+    if "proxyapi.ru" in base:
+        return {"provider": "proxyapi", "confidence": "high",
+                "reason": "Base URL указывает на ProxyAPI — это ключ ProxyAPI.",
+                "candidates": ["proxyapi"]}
+
+    if "openai.com" in base:
+        return {"provider": "openai", "confidence": "high",
+                "reason": "Base URL указывает на OpenAI — это ключ OpenAI.",
+                "candidates": ["openai"]}
+
+    if key.startswith("sk-"):
+        return {"provider": None, "confidence": "medium",
+                "reason": "Ключ вида sk-* подходит нескольким провайдерам (OpenAI / ProxyAPI / OpenRouter). "
+                          "Укажите Base URL или выберите провайдера вручную.",
+                "candidates": ["openai", "proxyapi", "openrouter"]}
+
+    return {"provider": None, "confidence": "low",
+            "reason": "Не удалось определить провайдера по префиксу ключа. Выберите его вручную или укажите Base URL.",
+            "candidates": list(ALL_PROVIDERS)}
+
+
+@router.post("/detect", response_model=ProviderDetectOut)
+async def detect_provider(body: ProviderDetectIn):
+    """Определить провайдера по API-ключу / Base URL, чтобы подсказать пользователю настройку."""
+    result = _detect_provider(body.api_key, body.base_url)
+    provider = result["provider"]
+    return ProviderDetectOut(
+        status="ok",
+        provider=provider,
+        confidence=result["confidence"],
+        reason=result["reason"],
+        candidates=result["candidates"],
+        default_model=DEFAULT_MODELS.get(provider, "") if provider else "",
+        base_url=DEFAULT_BASE_URLS.get(provider, "") if provider else "",
+        is_local=provider in LOCAL_PROVIDERS if provider else False,
+    )

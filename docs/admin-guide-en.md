@@ -98,9 +98,9 @@ architect  / architect123 → role: architect
 
 | Role | Permissions |
 |------|-------------|
-| `admin` | All business functions + `/auth/register`, `/auth/users`, `/settings/*` |
-| `architect` | All business functions + `/settings/*` (AI provider configuration) |
-| `analyst` | Documents, reviews, knowledge base, memory, audit (no settings/users) |
+| `admin` | All business functions + `/auth/register`, `/auth/users` |
+| `architect` | All business functions (including AI provider settings `/settings/*`) |
+| `analyst` | Documents, reviews, knowledge base, memory, audit + LLM provider settings `/settings/*` (own API key and connection test) |
 
 ### How Role Checks Work on the Backend
 
@@ -113,10 +113,10 @@ app.include_router(knowledge_base.router,  dependencies=[Depends(require_analyst
 app.include_router(memory.router,          dependencies=[Depends(require_analyst)])
 app.include_router(diagrams.router,        dependencies=[Depends(require_analyst)])
 app.include_router(audit.router,           dependencies=[Depends(require_analyst)])
-app.include_router(settings_router.router, dependencies=[Depends(require_architect)])
+app.include_router(settings_router.router, dependencies=[Depends(require_analyst)])
 ```
 
-`require_analyst` allows any of the three roles. `require_architect` allows only architect and admin. `/auth/register` and `/auth/users*` are individually protected with `Depends(require_admin)`.
+`require_analyst` allows any of the three roles — so **every** user can set up their own LLM provider, save an API key and test the connection. `require_admin` is admin-only (user management, seed data). `/auth/register` and `/auth/users*` are individually protected with `Depends(require_admin)`.
 
 ### Verifying Protection
 
@@ -165,7 +165,7 @@ curl -X POST http://localhost:8000/auth/users/{USER_ID}/reset-password \
 
 ## 5. AI Provider Configuration
 
-Available to **architect and admin roles only** (analyst gets 403).
+Available to **any authenticated user** (admin / analyst / architect). Pick a provider manually or **auto-detect it from the API key** (`POST /settings/detect`), and verify the key with a connection test **before saving** (`POST /settings/test` with the form body).
 
 ```bash
 curl -X POST http://localhost:8000/settings/providers \
@@ -340,7 +340,7 @@ sequenceDiagram
     actor U as User
     participant FE as Frontend
     participant API as FastAPI
-    participant Dep as require_analyst / require_architect
+    participant Dep as require_analyst + JWT
     participant DB as Database
 
     U->>FE: Enters username/password
@@ -354,11 +354,11 @@ sequenceDiagram
     API->>Dep: Role check
     Dep->>API: jwt.decode(token) → user_id, role
     Dep->>DB: SELECT user WHERE id=? (checks is_active)
-    alt role in [architect, admin]
+    alt any role (analyst | architect | admin)
         Dep-->>API: OK, pass through
         API->>DB: SELECT * FROM provider_settings
         API-->>FE: 200 + 5-provider config
-    else role == analyst
+    else no / invalid token
         Dep-->>API: 403 Forbidden
         API-->>FE: 403
     end

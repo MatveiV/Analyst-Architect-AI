@@ -19,7 +19,7 @@
 
 | Взято из | Что именно |
 |---|---|
-| Прототип (RBAC/i18n) | JWT-авторизация, роли admin/analyst/architect, i18n RU/EN (200+ ключей), 3-провайдерные настройки AI |
+| Прототип (RBAC/i18n) | JWT-авторизация, роли admin/analyst/architect, i18n RU/EN (200+ ключей), настройки 5 AI-провайдеров с детекцией и тестом соединения для любой роли |
 | `MatveiV/Analyst-Guru` | Reasoning-режимы (Chain-of-Thought / ReAct), Dashboard-эндпоинты, Seed-примеров через API |
 | **Новое в этом репозитории** | **Модуль экономики**: build-проекты, AI-декомпозиция задач, расчёт CAPEX/OPEX/ROI/payback, план/факт, экспорт бизнес-кейса в DOCX/PDF |
 
@@ -256,11 +256,11 @@ erDiagram
 
 | Роль | Доступ |
 |------|--------|
-| **Аналитик** (`analyst`) | Документы, рецензии, batch-рецензии, KB, память, диаграммы, аудит, стандарты, risk-catalog, lessons, **build-проекты и оценка экономики** |
-| **Архитектор** (`architect`) | Всё аналитика + **настройки AI-провайдеров** (включая Ollama) |
+| **Аналитик** (`analyst`) | Документы, рецензии, batch-рецензии, KB, память, диаграммы, аудит, стандарты, risk-catalog, lessons, **build-проекты и оценка экономики**, **настройки LLM-провайдеров** |
+| **Архитектор** (`architect`) | Все функции аналитика |
 | **Администратор** (`admin`) | Всё + **управление пользователями** + **seed-данные** (bulk-загрузка) |
 
-Аутентификация: OAuth2 password flow → JWT (HS256, срок 8 часов), пароли — bcrypt. Проверка роли через зависимости `require_analyst` / `require_architect` / `require_admin`.
+Аутентификация: OAuth2 password flow → JWT (HS256, срок 8 часов), пароли — bcrypt. Проверка роли через зависимости `require_analyst` / `require_admin`. Настройки AI-провайдеров (`/settings/*`) доступны **любой** аутентифицированной роли — каждый пользователь задаёт свой ключ и тестирует соединение.
 
 Тестовые учётные записи (сменить перед продакшн!):
 
@@ -373,6 +373,7 @@ curl -X POST http://localhost:8000/ai/review -H "Authorization: Bearer $TOKEN" \
 | `MAX_DOCUMENT_LENGTH` | Макс. длина документа | `30000` |
 | `RAG_TOP_K` | Число фрагментов для RAG | `5` |
 | `LLM_TEMPERATURE` / `LLM_MAX_TOKENS` | Параметры LLM | `0.2` / `4096` |
+| `LLM_TIMEOUT` | Таймаут одного LLM-вызова, секунды. Для локальных моделей (Ollama на CPU) поднимайте до `2400`+ — иначе долгая генерация обрывается и уходит в safe-fallback (`needs_review=true`) | `600` |
 | `LLM_COST_USD_TO_RUB` | Курс для пересчёта факт. расходов LLM | `90.0` |
 
 > Рантайм-переключение провайдера возможно через БД (`/settings/providers`, роль architect+) — настройки в БД имеют приоритет над `.env`.
@@ -435,9 +436,11 @@ curl -X POST http://localhost:8000/ai/review -H "Authorization: Bearer $TOKEN" \
 `POST /seed/documents` · `POST /seed/kb-documents` · `POST /seed/examples`
 > `/seed/examples` идемпотентно загружает 10 ТЗ/BRD/US + 5 KB-статей + риски/уроки/память (если ещё не загружено). В UI запускается кнопкой «Загрузить примеры для всех процессов» в Settings.
 
-### Настройки AI-провайдеров (architect/admin)
+### Настройка AI-провайдеров (любая роль)
 `GET /settings/providers` · `POST /settings/providers` · `POST /settings/providers/activate?provider=` ·
-`POST /settings/test?provider=` · `GET /settings/active` ·
+`POST /settings/test` (тест соединения по введённой конфигурации, можно до сохранения) ·
+`POST /settings/detect` (определение провайдера по API-ключу / Base URL) ·
+`GET /settings/active` ·
 `GET /settings/providers/ollama/models`
 
 ---

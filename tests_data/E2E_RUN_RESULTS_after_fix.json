@@ -1,0 +1,127 @@
+{
+  "run_started_at": "2026-09-15T17:39:05",
+  "base_url": "http://127.0.0.1:8000",
+  "specs": [
+    {
+      "n": 1,
+      "title": "Форма заявки с таблицей результатов",
+      "review_id": "a5513d2f-7262-4c2e-b9a0-35a34d77283d",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 1,
+      "questions": 3,
+      "acceptance_criteria": 5,
+      "duration_s": 338.1
+    },
+    {
+      "n": 5,
+      "title": "Витрина аналитических данных с фильтрами",
+      "review_id": "4c595574-54b1-4d87-ba1a-6b195f44d81e",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "MODEL_FLAGGED_NEEDS_REVIEW",
+      "confidence": "medium",
+      "risks": 2,
+      "high_risks": 0,
+      "questions": 3,
+      "acceptance_criteria": 9,
+      "duration_s": 123.6
+    },
+    {
+      "n": 6,
+      "title": "Мини-сервис генерации PDF-документов по шаблону",
+      "review_id": "0e7f5083-4400-495b-b154-fe3c436ba63d",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 1,
+      "questions": 3,
+      "acceptance_criteria": 3,
+      "duration_s": 84.5
+    }
+  ],
+  "questions": [
+    {
+      "n": 3,
+      "question": "Какие шаги нужно пройти перед деплоем в production?",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Процесс запуска задачи"
+      ],
+      "confidence": "high",
+      "answer": "Перед деплоем в production необходимо выполнить следующие шаги: деплой в maintenance window (обычно вторник/четверг с 22:00 до 23:00) и мониторинг метрик в течение 30 минут после деплоя.",
+      "duration_s": 33.9
+    },
+    {
+      "n": 5,
+      "question": "Как правильно написать шаблон ответа при эскалации?",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Шаблоны ответов"
+      ],
+      "confidence": "high",
+      "answer": "Для эскалации ответа можно использовать следующий шаблон: Добрый день! Ваше обращение [НОМЕР] получено и принято в работу. Эскалация направлена на [ФИО или должность ответственного]. Плановый срок ответа: [ДАТА/ВРЕМЯ]. При необходимости мы свяжемся с вами дополнительно.",
+      "duration_s": 42.8
+    },
+    {
+      "n": 6,
+      "question": "Как проводится code review в команде?",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Процесс запуска задачи"
+      ],
+      "confidence": "high",
+      "answer": "Code review в команде проводится следующим образом:Pull Request с описанием изменений отправляется в систему контроля версий. Минимум один апрув от senior разработчика требуется. Все тесты должны пройти в CI. Код ревью обязателен для всех изменений в main/master ветку. Критерии оценки включают читае…",
+      "duration_s": 53.3
+    }
+  ],
+  "progress_tag": "done",
+  "run_updated_at": "2026-09-15T17:50:22",
+  "summary": {
+    "specs": {
+      "1": {
+        "needs_review": true,
+        "error": "LOW_CONFIDENCE",
+        "risks": 2,
+        "ac": 5
+      },
+      "5": {
+        "needs_review": true,
+        "error": "MODEL_FLAGGED_NEEDS_REVIEW",
+        "risks": 2,
+        "ac": 9
+      },
+      "6": {
+        "needs_review": true,
+        "error": "LOW_CONFIDENCE",
+        "risks": 2,
+        "ac": 3
+      }
+    },
+    "questions": {
+      "3": {
+        "needs_review": false,
+        "sources": 1
+      },
+      "5": {
+        "needs_review": false,
+        "sources": 1
+      },
+      "6": {
+        "needs_review": false,
+        "sources": 1
+      }
+    }
+  }
+}

@@ -551,6 +551,33 @@ class ProviderSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProviderTestIn(BaseModel):
+    """Параметры теста соединения — именно то, что пользователь ввёл в форму.
+    Пустые поля добираются из сохранённой настройки (DB), затем из дефолтов."""
+    provider: str = Field(pattern="^(anthropic|openai|proxyapi|openrouter|ollama)$")
+    api_key: str = Field(default="", max_length=500)
+    model: str = Field(default="", max_length=100)
+    base_url: str = Field(default="", max_length=500)
+    route: str = Field(default="", max_length=50)
+
+
+class ProviderDetectIn(BaseModel):
+    """Детекция провайдера по API-ключу / Base URL."""
+    api_key: str = Field(default="", max_length=500)
+    base_url: str = Field(default="", max_length=500)
+
+
+class ProviderDetectOut(BaseModel):
+    status: str = "ok"
+    provider: str | None = None          # определённый провайдер (или None)
+    confidence: str = "low"              # high | medium | low
+    reason: str = ""
+    candidates: list[str] = []           # возможные варианты
+    default_model: str = ""
+    base_url: str = ""
+    is_local: bool = False
+
+
 class ActiveProviderOut(BaseModel):
     provider: str
     model: str

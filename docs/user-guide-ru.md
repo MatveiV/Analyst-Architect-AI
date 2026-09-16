@@ -57,8 +57,8 @@ Analyst-Architect-AI решает проблему **дорогостоящег�
 
 | Роль | Описание | Возможности |
 |------|----------|-------------|
-| **Аналитик** (`analyst`) | Специалист по требованиям | Документы, рецензии, batch-рецензии, KB, память, диаграммы, аудит, стандарты, risk-catalog, lessons, **build-проекты и экономика** |
-| **Архитектор** (`architect`) | Архитектор ПО | Всё что аналитик + **настройки AI-провайдеров** (включая Ollama), внесение факта в build-проекты |
+| **Аналитик** (`analyst`) | Специалист по требованиям | Документы, рецензии, batch-рецензии, KB, память, диаграммы, аудит, стандарты, risk-catalog, lessons, **build-проекты и экономика**, **настройки AI-провайдеров** |
+| **Архитектор** (`architect`) | Архитектор ПО | Всё что аналитик + внесение факта в build-проекты |
 | **Администратор** (`admin`) | Системный администратор | Всё + **управление пользователями** (создание, роли, блокировка, сброс паролей) + **seed-данные** |
 
 ### Матрица доступа
@@ -78,7 +78,7 @@ Analyst-Architect-AI решает проблему **дорогостоящег�
 | **Build-проекты и экономика (CAPEX/OPEX/ROI)** | ✅ | ✅ | ✅ |
 | Внесение факта (actuals) в build-проект | ❌ (403) | ✅ | ✅ |
 | Просмотр аудита | ✅ | ✅ | ✅ |
-| **Настройки AI-провайдеров** | ❌ (403) | ✅ | ✅ |
+| **Настройки AI-провайдеров** | ✅ | ✅ | ✅ |
 | **Управление пользователями** | ❌ (403) | ❌ (403) | ✅ |
 | **Seed демо-данных (`/seed/...`)** | ❌ (403) | ❌ (403) | ✅ |
 
@@ -173,7 +173,7 @@ C4Component
         Component(econ_r, "Build Projects Router", "FastAPI", "Экономика: CAPEX/OPEX/ROI")
         Component(dash_r, "Dashboard Router", "FastAPI", "Статистика, actual-usage")
         Component(audit_r, "Audit Router", "FastAPI", "Просмотр аудит-журнала")
-        Component(settings_r, "Settings Router", "FastAPI (architect+admin)", "Настройки 5 AI-провайдеров")
+        Component(settings_r, "Settings Router", "FastAPI (любая роль)", "Настройки 5 AI-провайдеров: ключ, детекция, тест, активация")
 
         Component(ai_rev, "AI Reviewer", "Python", "Рецензия ТЗ, reasoning modes (direct/cot/react), safe_fallback")
         Component(rag, "RAG Engine", "sentence-transformers + FAISS", "Гибридный поиск (keyword 40% + semantic 60%)")
@@ -188,7 +188,7 @@ C4Component
 
     Rel(docs_r, deps, "Проверка JWT + роль")
     Rel(batch_r, deps, "Проверка JWT + роль")
-    Rel(settings_r, deps, "Требует architect|admin")
+    Rel(settings_r, deps, "Требует любую роль (admin|analyst|architect)")
     Rel(docs_r, ai_rev, "Запуск рецензии")
     Rel(batch_r, ai_rev, "Пакетная рецензия")
     Rel(kb_r, rag, "RAG-поиск")
@@ -349,10 +349,11 @@ Backend возвращает `401 Unauthorized`, интерфейс показы
 Шаг 5: Нажимает [🔌 Создать API Spec] → OpenAPI 3.1 (JSON + YAML)
 Шаг 6: Нажимает [🗺 Сгенерировать диаграммы] → C4, UML, ERD, Mermaid
 
-Настройка AI-провайдера (доступно только architect/admin):
-Шаг 7: Архитектор → [⚙️ Настройки]
-Шаг 8: Выбирает провайдер, вводит API ключ, тестирует связь
-Шаг 9: Для OpenRouter можно выбрать Route (режим маршрутизации):
+Настройка AI-провайдера (доступно любой роли):
+Шаг 7: Открыть [⚙️ Настройки]
+Шаг 8: При желании — 🔍 «Определить провайдера» по введённому ключу, затем ввести ключ и модель
+Шаг 9: ⚡ «Тест связи» (проверка до сохранения), сохранить, нажать «Сделать активным»
+Шаг 10: Для OpenRouter можно выбрать Route (режим маршрутизации):
       • `openrouter/free` — только бесплатные модели (по умолчанию)
       • `openrouter/fusion` — ансамбль из 2+ моделей, возвращает лучший результат
       • `openrouter/pareto-code` — оптимизация для задач программирования
@@ -675,7 +676,7 @@ ROI_12мес = ((Выгода − OPEX) × 12 − CAPEX) / CAPEX × 100
 
 **Где:** Боковое меню → ⚙️ Настройки
 
-Доступно **только ролям architect и admin** (analyst получит 403). На странице — карточки пяти провайдеров:
+Доступно **любому аутентифицированному пользователю** (admin / analyst / architect). Можно **определить провайдера автоматически** по API-ключу или Base URL, **проверить соединение до сохранения**, а затем сохранить настройку и активировать провайдера.
 
 | Провайдер | Конфигурация |
 |-----------|--------------|
@@ -686,13 +687,14 @@ ROI_12мес = ((Выгода − OPEX) × 12 − CAPEX) / CAPEX × 100
 | **Ollama** (локально) | `base_url`, `model` (qwen2.5:14b-instruct); список реально скачанных моделей подтягивается с `/v1/models` через `GET /settings/providers/ollama/models` |
 
 **Действия:**
+- **Определить провайдера** — `POST /settings/detect` по API-ключу / Base URL (эвристики: sk-ant- → Anthropic, sk-or- → OpenRouter и др.)
 - Сохранить настройки провайдера → запись в `provider_settings` (приоритет над `.env`)
-- **Тест подключения** (`POST /settings/test?provider=…`) — реальный вызов LLM с дешёвой проверочной подсказкой
+- **Тест подключения** (`POST /settings/test` с телом формы) — проверяет соединение по введённым / сохранённым данным (можно **до сохранения**)
 - **Активировать** — переключить активного провайдера без перезапуска
 
 В нижней части — кнопка **📥 Загрузить примеры для всех процессов**, которая вызывает `POST /seed/examples` (admin).
 
-**REST:** `GET /settings/providers`, `POST /settings/providers`, `POST /settings/providers/activate?provider=`, `POST /settings/test?provider=`, `GET /settings/active`, `GET /settings/providers/ollama/models`.
+**REST:** `GET /settings/providers`, `POST /settings/providers`, `POST /settings/providers/activate?provider=`, `POST /settings/test`, `POST /settings/detect`, `GET /settings/active`, `GET /settings/providers/ollama/models`.
 
 ### 14.6 👥 Пользователи (только admin)
 

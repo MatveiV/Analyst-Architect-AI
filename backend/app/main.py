@@ -14,7 +14,7 @@ from app.api.routers import auth as auth_router
 from app.api.routers import build_projects, dashboard, seed
 from app.api.routers import standards as standards_router
 from app.api.routers import batch_reviews as batch_reviews_router
-from app.api.deps import require_analyst, require_architect, require_admin
+from app.api.deps import require_analyst, require_admin
 
 os.makedirs("data", exist_ok=True)
 
@@ -92,8 +92,9 @@ app.include_router(batch_reviews_router.router, dependencies=[Depends(require_an
 # actuals entry (post-launch reconciliation) requires architect/admin judgement
 app.include_router(build_projects.router, dependencies=[Depends(require_analyst)])
 
-# Provider settings: architect or admin only (per Access Matrix)
-app.include_router(settings_router.router, dependencies=[Depends(require_architect)])
+# Provider settings: any authenticated role (admin | analyst | architect) — каждый
+# пользователь может настроить своего LLM-провайдера, сохранить ключ и протестировать.
+app.include_router(settings_router.router, dependencies=[Depends(require_analyst)])
 
 # Seed/demo-data endpoints: admin only (bulk-inserts data, should be deliberate)
 app.include_router(seed.router, dependencies=[Depends(require_admin)])

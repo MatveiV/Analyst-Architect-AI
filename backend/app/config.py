@@ -20,6 +20,11 @@ class Settings:
     RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", "5"))
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+    # Таймаут одного LLM-вызова, секунды. Локальные модели на CPU (Ollama + qwen2.5:7b)
+    # генерируют ответ 2–20 минут, поэтому дефолтный таймаут SDK (600 с в новых версиях
+    # openai, 120 с — в этом коде) недостаточен: вызов падает в safe-fallback с
+    # needs_review=true. Для локальных моделей поднимайте значение до 2400+ (см. .env).
+    LLM_TIMEOUT: float = float(os.getenv("LLM_TIMEOUT", "600"))
     LLM_MODEL_ANTHROPIC: str = "claude-sonnet-4-20250514"
     LLM_MODEL_OPENAI: str = "gpt-4o"
     LLM_MODEL_OPENROUTER: str = "openrouter/auto"

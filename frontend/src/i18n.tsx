@@ -100,6 +100,8 @@ const T = {
   kb_new_doc:      { ru: 'Новый KB-документ', en: 'New KB Document' },
   kb_content:      { ru: 'Содержимое', en: 'Content' },
   kb_added:        { ru: 'Документ добавлен в базу знаний', en: 'Document added to knowledge base' },
+  kb_open_doc:     { ru: 'Открыть документ', en: 'Open document' },
+  kb_cause:        { ru: 'Причина ручной проверки', en: 'Manual review reason' },
 
   // ── Arch Studio ───────────────────────────────────────────────────────────
   studio_title:    { ru: 'Архитектурная студия', en: 'Architecture Studio' },
@@ -180,6 +182,11 @@ const T = {
   set_activated:   { ru: 'Активирован', en: 'Activated' },
   set_edit:        { ru: '✎ Редактировать', en: '✎ Edit' },
   set_test:        { ru: '⚡ Тест связи', en: '⚡ Test Connection' },
+  set_test_title:  { ru: 'Проверить соединение (можно до сохранения ключа)', en: 'Test connection (works before saving the key)' },
+  set_detect:      { ru: 'Определить провайдера', en: 'Detect provider' },
+  set_detect_title: { ru: 'Определить провайдера по введённому API-ключу', en: 'Detect provider from the entered API key' },
+  set_detect_detected: { ru: 'Определён провайдер', en: 'Detected provider' },
+  set_detect_go:   { ru: 'Настроить', en: 'Set up' },
   set_api_key:     { ru: 'API Ключ',   en: 'API Key' },
   set_api_key_ph:  { ru: 'sk-... (оставьте пустым, чтобы не менять)', en: 'sk-... (leave empty to keep existing)' },
   set_model:       { ru: 'Модель',     en: 'Model' },

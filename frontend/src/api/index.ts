@@ -150,8 +150,11 @@ export const saveProvider = (data: any) => api.post('/settings/providers', data)
 export const activateProvider = (provider: string) =>
   api.post(`/settings/providers/activate?provider=${provider}`);
 export const getActiveProvider = () => api.get('/settings/active');
-export const testProvider = (provider: string) =>
-  api.post(`/settings/test?provider=${provider}`);
+// Тест принимает конфигурацию из формы (ключ можно проверить ДО сохранения);
+// пустые поля backend дозаполнит из сохранённых настроек.
+export const testProvider = (data: any) => api.post('/settings/test', data);
+// Детекция провайдера по API-ключу / Base URL.
+export const detectProvider = (data: any) => api.post('/settings/detect', data);
 // Эпик C4: список реально скачанных Ollama-моделей вместо угадывания имени
 export const listOllamaModels = () => api.get('/settings/providers/ollama/models');
 

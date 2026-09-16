@@ -36,8 +36,8 @@ Access to the system requires **mandatory username/password authentication** (JW
 
 | Role | Description | Capabilities |
 |------|-------------|--------------|
-| **Analyst** (`analyst`) | Requirements specialist | Create and review documents, work with knowledge base, manage memory, view audit |
-| **Architect** (`architect`) | Software architect | Everything analyst can do + AI provider settings, architecture recommendations, ADR generation |
+| **Analyst** (`analyst`) | Requirements specialist | Create and review documents, work with knowledge base, manage memory, view audit + AI provider settings |
+| **Architect** (`architect`) | Software architect | Everything analyst can do + architecture recommendations, ADR generation |
 | **Administrator** (`admin`) | System administrator | Full access + user management (create, roles, block, password reset) |
 
 ### Access Matrix
@@ -51,7 +51,7 @@ Access to the system requires **mandatory username/password authentication** (JW
 | ADR generation | ✅ | ✅ | ✅ |
 | Knowledge base / RAG | ✅ | ✅ | ✅ |
 | View audit log | ✅ | ✅ | ✅ |
-| AI provider settings | ❌ (403) | ✅ | ✅ |
+| AI provider settings | ✅ | ✅ | ✅ |
 | User management | ❌ (403) | ❌ (403) | ✅ |
 
 > Restrictions are enforced **on the backend** (JWT + role check), not just hidden in the UI — calling a protected endpoint without the right role returns HTTP 403.
@@ -145,7 +145,7 @@ C4Component
         Component(econ_r, "Build Projects Router", "FastAPI", "Economics: CAPEX/OPEX/ROI")
         Component(dash_r, "Dashboard Router", "FastAPI", "Stats, actual-usage")
         Component(audit_r, "Audit Router", "FastAPI", "Audit log viewer")
-        Component(settings_r, "Settings Router", "FastAPI (architect+admin)", "5 AI provider settings")
+        Component(settings_r, "Settings Router", "FastAPI (any authenticated role)", "5 AI provider settings: key, detect, test, activate")
 
         Component(ai_rev, "AI Reviewer", "Python", "Spec review, reasoning modes (direct/cot/react), safe_fallback")
         Component(rag, "RAG Engine", "sentence-transformers + FAISS", "Hybrid search (keyword 40% + semantic 60%)")
@@ -160,7 +160,7 @@ C4Component
 
     Rel(docs_r, deps, "Validates JWT + role")
     Rel(batch_r, deps, "Validates JWT + role")
-    Rel(settings_r, deps, "Requires architect|admin")
+    Rel(settings_r, deps, "Requires any role (admin|analyst|architect)")
     Rel(docs_r, ai_rev, "Trigger review")
     Rel(batch_r, ai_rev, "Batch review")
     Rel(kb_r, rag, "RAG search")
@@ -301,10 +301,11 @@ Step 4: Click [📋 Create ADR]
 Step 5: Click [🔌 Create API Spec] → OpenAPI 3.1
 Step 6: Click [🗺 Generate Diagrams] → C4, UML, ERD, Mermaid
 
-Configure AI provider (architect/admin only):
-Step 7: Architect → [⚙️ Settings]
-Step 8: Select provider, enter API key, test connection
-Step 9: For OpenRouter you can select Route (routing strategy):
+Configure AI provider (any authenticated user):
+Step 7: Open [⚙️ Settings]
+Step 8: Optionally click 🔍 Detect provider — app identifies the provider from the entered API key
+Step 9: Enter API key, select model, click ⚡ Test connection (works before saving), then save
+Step 10: For OpenRouter you can select Route (routing strategy):
       • `openrouter/free` — free models only (default)
       • `openrouter/fusion` — ensemble of 2+ models, returns best result
       • `openrouter/pareto-code` — optimized for coding tasks

@@ -17,6 +17,8 @@ services:
       - RAG_TOP_K=${RAG_TOP_K:-5}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.2}
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
+      # Локальные модели (Ollama) отвечают минутами — таймаут одного вызова поднимаем
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-600}
       # Эпик A1: локальный рендер диаграмм вместо plantuml.com/mermaid.live
       - DIAGRAM_RENDERER_URL=${DIAGRAM_RENDERER_URL:-http://kroki:8000}
       # Эпик C: локальные LLM через Ollama

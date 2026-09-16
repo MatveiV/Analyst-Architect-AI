@@ -82,8 +82,9 @@ async def db_session():
         yield session
 
 
-# ── Admin auth headers — для эндпоинтов, закрытых require_architect/require_admin
-# (например /settings/providers) — обычного analyst-токена туда недостаточно (403).
+# ── Admin auth headers — для эндпоинтов, закрытых require_admin (например /seed/*);
+# настройки провайдеров (/settings/*) теперь доступны любому аутентифицированному
+# пользователю (admin|analyst|architect).
 @pytest_asyncio.fixture(scope="session")
 async def admin_auth_headers(client):
     resp = await client.post(

@@ -1,7 +1,7 @@
 # Отчёт о функциональном тестировании
 
 > Дата: 20.08.2026
-> Окружение: Windows 11, Python 3.14, Node 18+, FastAPI (uvicorn), Vite, Ollama `qwen2.5:latest`
+> Окружение: Windows 11, Python 3.14, Node 18+, FastAPI (uvicorn), Vite, Ollama `qwen2.5:7b`
 > Данные: `filesdocs/demo-documents/` — 3 темы × 6 файлов (полное ТЗ, сырое ТЗ, 3 KB-статьи, уроки)
 > Скрипт прогона: `filesdocs/test_demo_flow.py` (пофазовый, с сохранением состояния в `filesdocs/test_state.json`)
 > ⚠️ Одноразовые скрипты прогона (`test_demo_flow.py`, `arch_step.py`, `check_*.py`, `debug_*.py` и др.) позже удалены из репозитория при зачистке артефактов — этот отчёт сохранён как исторический снимок; воспроизвести сценарий сегодня можно через `POST /seed/examples` (admin) и curl-примеры из README.

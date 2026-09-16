@@ -1,0 +1,451 @@
+{
+  "run_started_at": "2026-09-15T17:04:37",
+  "base_url": "http://127.0.0.1:8000",
+  "datasets": {
+    "specs": 10,
+    "kb_documents": 5,
+    "kb_questions": 10
+  },
+  "specs": [
+    {
+      "n": 1,
+      "title": "Форма заявки с таблицей результатов",
+      "document_id": "9f68dd12-d91e-432e-94dc-10f50d7539be",
+      "review_id": "918eeae4-7d96-42a6-aa62-f9d261f1ef15",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 1,
+      "high_risks": 0,
+      "questions": 5,
+      "acceptance_criteria": 9,
+      "summary": "Техническое задание содержит базовый функционал, но отсутствуют детали и проверяемые критерии приёмки.",
+      "duration_s": 221.0
+    },
+    {
+      "n": 2,
+      "title": "Парсер цен конкурентов",
+      "document_id": "dc4c6597-7e71-4697-98e4-99a1c2993df7",
+      "review_id": "a948314a-3b07-477c-9f22-af1139c06e2f",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 0,
+      "questions": 4,
+      "acceptance_criteria": 0,
+      "summary": "Техническое задание содержит основные функции и ограничения, но отсутствуют детальные критерии приёмки и требования к производительности.",
+      "duration_s": 115.3
+    },
+    {
+      "n": 3,
+      "title": "Система учёта оплат и выгрузка отчётов",
+      "document_id": "a14c353d-684e-46b9-863c-ae9ef5e502d6",
+      "review_id": "fbeed780-b585-474d-ad94-2f0e5f3a2b09",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "MODEL_FLAGGED_NEEDS_REVIEW",
+      "confidence": "medium",
+      "risks": 2,
+      "high_risks": 0,
+      "questions": 3,
+      "acceptance_criteria": 0,
+      "summary": "Техническое задание описывает основные функции и сущности системы для бухгалтерии, но отсутствуют детальные критерии приёмки и требования к производительности.",
+      "duration_s": 96.9
+    },
+    {
+      "n": 4,
+      "title": "Личный кабинет пользователя с профилем",
+      "document_id": "baab3ff2-1a6a-443e-a132-655d974011c3",
+      "review_id": "4eb26c43-be10-4e43-b850-571f0233a9a7",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 0,
+      "questions": 3,
+      "acceptance_criteria": 7,
+      "summary": "Техническое задание содержит базовые требования, но недостаточно детализировано для полного понимания и реализации.",
+      "duration_s": 143.2
+    },
+    {
+      "n": 5,
+      "title": "Витрина аналитических данных с фильтрами",
+      "document_id": "7d53d74a-34c3-4421-a53b-f21ca75c793b",
+      "review_id": "097cfcac-ac29-4138-83b3-8f5b81060a59",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "MODEL_FLAGGED_NEEDS_REVIEW",
+      "confidence": "medium",
+      "risks": 2,
+      "high_risks": 0,
+      "questions": 3,
+      "acceptance_criteria": 9,
+      "summary": "Техническое задание содержит базовые функциональные и негативные требования, но отсутствуют детальные критерии приёмки и критерии производительности.",
+      "duration_s": 179.3
+    },
+    {
+      "n": 6,
+      "title": "Мини-сервис генерации PDF-документов по шаблону",
+      "document_id": "4eec7aa0-0a2c-4654-ac7b-4b1266fa151e",
+      "review_id": "6f9b1df0-0235-47d4-a348-f92869806a24",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 1,
+      "questions": 3,
+      "acceptance_criteria": 3,
+      "summary": "Техническое задание содержит основные функции и требования, но отсутствуют детальные критерии приёмки, что может вызвать недопонимание.",
+      "duration_s": 117.1
+    },
+    {
+      "n": 7,
+      "title": "Сделать сайт",
+      "document_id": "0e2782e2-6b80-4128-a073-0e17c285fb17",
+      "review_id": "7c9ec286-a050-4661-ac8b-da36e31463bf",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "error": "TOO_VAGUE_INPUT",
+      "confidence": "low",
+      "risks": 1,
+      "high_risks": 1,
+      "questions": 4,
+      "acceptance_criteria": 0,
+      "summary": "Документ слишком краткий для полноценного анализа.",
+      "duration_s": 2.8
+    },
+    {
+      "n": 8,
+      "title": "Мобильное приложение",
+      "document_id": "f68b688d-301b-4054-8271-7dff9817d6d3",
+      "review_id": "5757f1c9-58db-4c13-92ec-c63906c6544e",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "error": "TOO_VAGUE_INPUT",
+      "confidence": "low",
+      "risks": 1,
+      "high_risks": 1,
+      "questions": 4,
+      "acceptance_criteria": 0,
+      "summary": "Документ слишком краткий для полноценного анализа.",
+      "duration_s": 1.6
+    },
+    {
+      "n": 9,
+      "title": "Система авторизации (противоречивые требования)",
+      "document_id": "a5b7c677-51ad-4283-b1fa-733fce9d624c",
+      "review_id": "aa90e1ae-7b1d-44bb-b2eb-15d882f3ccef",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "error": "CONTRADICTORY_INPUT",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 2,
+      "questions": 3,
+      "acceptance_criteria": 0,
+      "summary": "Техническое задание содержит противоречивые требования и недостаточно детализированные критерии приёмки, что может привести к недопониманию между командой разработки и заказчиком.",
+      "duration_s": 79.2
+    },
+    {
+      "n": 10,
+      "title": "Чат-бот поддержки (противоречия в архитектуре)",
+      "document_id": "8fdfa6a6-a95c-4946-9163-fc57718771b2",
+      "review_id": "25000b65-74ac-4115-a1dc-d2ef86643812",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "error": "LOW_CONFIDENCE",
+      "confidence": "low",
+      "risks": 2,
+      "high_risks": 1,
+      "questions": 3,
+      "acceptance_criteria": 0,
+      "summary": "Техническое задание содержит основные требования, но отсутствуют детальные критерии приёмки и требования к производительности и доступности.",
+      "duration_s": 91.7
+    }
+  ],
+  "questions": [
+    {
+      "n": 1,
+      "question": "Какой SLA установлен на ответы внутри команды?",
+      "why": "Ответ есть в 'Правила работы команды'",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Правила работы команды"
+      ],
+      "confidence": "high",
+      "answer": "SLA установлен на ответы внутри команды в течение 2 рабочих часов.",
+      "duration_s": 52.8
+    },
+    {
+      "n": 2,
+      "question": "Как клиенту оформить возврат?",
+      "why": "Ответ есть в 'Частые вопросы клиентов'",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Частые вопросы клиентов"
+      ],
+      "confidence": "high",
+      "answer": "Чтобы оформить возврат, клиенту нужно написать на support@company.ru с темой 'Возврат #[номер заказа]'. В сообщении следует указать причину возврата. Возврат можно оформить в течение 14 дней с момента покупки, а деньги будут возвращены на ту же карту в течение 3–5 рабочих дней.",
+      "duration_s": 68.2
+    },
+    {
+      "n": 3,
+      "question": "Какие шаги нужно пройти перед деплоем в production?",
+      "why": "Ответ есть в 'Процесс запуска задачи'",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 75.5
+    },
+    {
+      "n": 4,
+      "question": "Что такое ADR?",
+      "why": "Ответ есть в 'Словарь терминов'",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 1,
+      "source_titles": [
+        "Словарь терминов"
+      ],
+      "confidence": "high",
+      "answer": "ADR (Architecture Decision Record) — это запись об архитектурном решении. Она фиксирует контекст, проблему, принятое решение, альтернативы и последствия.",
+      "duration_s": 58.3
+    },
+    {
+      "n": 5,
+      "question": "Как правильно написать шаблон ответа при эскалации?",
+      "why": "Ответ есть в 'Шаблоны ответов'",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 89.0
+    },
+    {
+      "n": 6,
+      "question": "Как проводится code review в команде?",
+      "why": "Ответ есть в 'Правила работы команды'",
+      "expected_needs_review": false,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 94.9
+    },
+    {
+      "n": 7,
+      "question": "Что такое RPO и чем отличается от RTO?",
+      "why": "Ответ есть в 'Словарь терминов'",
+      "expected_needs_review": false,
+      "actual_needs_review": false,
+      "sources": 2,
+      "source_titles": [
+        "Словарь терминов",
+        "Словарь терминов"
+      ],
+      "confidence": "high",
+      "answer": "RPO (Recovery Point Objective) — это целевая точка восстановления, которая определяет максимально допустимый объём потерянных данных, выраженный во времени. RTO (Recovery Time Objective) — это целевое время восстановления, которое определяет максимально допустимое время простоя системы после сбоя.",
+      "duration_s": 72.5
+    },
+    {
+      "n": 8,
+      "question": "Какую библиотеку использовать для работы с PDF на Python?",
+      "why": "Этой информации нет ни в одном документе базы знаний",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 32.7
+    },
+    {
+      "n": 9,
+      "question": "Как настроить CI/CD пайплайн в GitLab?",
+      "why": "Документов по DevOps в базе знаний нет",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 33.5
+    },
+    {
+      "n": 10,
+      "question": "Какова стоимость нашей подписки?",
+      "why": "Финансовых документов в базе знаний нет",
+      "expected_needs_review": true,
+      "actual_needs_review": true,
+      "sources": 0,
+      "source_titles": [],
+      "confidence": "low",
+      "answer": "Данных недостаточно для ответа на этот вопрос.",
+      "duration_s": 34.4
+    }
+  ],
+  "smoke": {
+    "documents_total": 10,
+    "kb_documents_total": 5,
+    "kb_indexed": {
+      "indexed": 5,
+      "faiss_indexed": 48
+    },
+    "POST /documents": {
+      "status_code": 200,
+      "has_id": true,
+      "document_id_field": "98d75dc5-4856-4826-ad39-e7a7fcfb03b0",
+      "status_field": "ok"
+    },
+    "POST /kb/documents": {
+      "status_code": 200,
+      "has_id": true
+    },
+    "POST /ai/review": {
+      "status_code": 200,
+      "keys": [
+        "acceptance_criteria",
+        "architecture_risks",
+        "confidence",
+        "lessons_learned",
+        "missing_requirements",
+        "needs_review",
+        "needs_review_reason",
+        "questions_to_client",
+        "related_decisions",
+        "risks",
+        "similar_projects",
+        "summary"
+      ],
+      "needs_review": true
+    },
+    "POST /ai/answer_with_sources": {
+      "status_code": 200,
+      "json": {
+        "answer": "SLA на ответ внутри команды — 4 часа в рабочие дни.",
+        "sources": [
+          {
+            "quote": "SLA на ответ внутри команды — 4 часа в рабочие дни.",
+            "document_id": null,
+            "document_title": null
+          }
+        ],
+        "confidence": "high",
+        "needs_review": false,
+        "needs_review_reason": ""
+      }
+    },
+    "length_and_empty_validation": {
+      "too_long_status": 422,
+      "empty_status": 422
+    },
+    "GET /reviews/{id}": [
+      "confidence",
+      "created_at",
+      "document_id",
+      "error",
+      "id",
+      "needs_review",
+      "needs_review_reason",
+      "review_id",
+      "review_json"
+    ],
+    "GET /kb/history": {
+      "rows": 10,
+      "reasons": [
+        "INVALID_JSON",
+        "NO_SOURCES_FOUND"
+      ],
+      "with_sources": 4
+    }
+  },
+  "summary": {
+    "specs_total": 10,
+    "specs_needs_review_true": 10,
+    "specs_needs_review_false": 0,
+    "specs_matched_expectation": 4,
+    "specs_with_error_reason": 10,
+    "questions_total": 10,
+    "questions_needs_review_true": 6,
+    "questions_needs_review_false": 4,
+    "questions_matched_expectation": 7,
+    "questions_with_sources": 4,
+    "llm_seconds_total": 1659.9,
+    "llm_seconds_specs": 1048.1,
+    "llm_seconds_questions": 611.8,
+    "log": [
+      "[17:04:37] login: ok (admin)",
+      "[17:04:38] seed specs: {'loaded': 10}",
+      "[17:05:35] seed kb-documents: {'loaded': 5}",
+      "[17:09:21] #1 Форма заявки с таблицей результатов    exp=False act=True reason=LOW_CONFIDENCE conf=low risks=1(high=0) q=5 ac=9 221.0s",
+      "[17:11:16] #2 Парсер цен конкурентов                 exp=False act=True reason=LOW_CONFIDENCE conf=low risks=2(high=0) q=4 ac=0 115.3s",
+      "[17:12:53] #3 Система учёта оплат и выгрузка отчётов exp=False act=True reason=MODEL_FLAGGED_NEEDS_REVIEW conf=medium risks=2(high=0) q=3 ac=0 96.9s",
+      "[17:15:17] #4 Личный кабинет пользователя с профилем exp=False act=True reason=LOW_CONFIDENCE conf=low risks=2(high=0) q=3 ac=7 143.2s",
+      "[17:18:16] #5 Витрина аналитических данных с фильтра exp=False act=True reason=MODEL_FLAGGED_NEEDS_REVIEW conf=medium risks=2(high=0) q=3 ac=9 179.3s",
+      "[17:20:13] #6 Мини-сервис генерации PDF-документов п exp=False act=True reason=LOW_CONFIDENCE conf=low risks=2(high=1) q=3 ac=3 117.1s",
+      "[17:20:16] #7 Сделать сайт                           exp=True act=True reason=TOO_VAGUE_INPUT conf=low risks=1(high=1) q=4 ac=0 2.8s",
+      "[17:20:18] #8 Мобильное приложение                   exp=True act=True reason=TOO_VAGUE_INPUT conf=low risks=1(high=1) q=4 ac=0 1.6s",
+      "[17:21:37] #9 Система авторизации (противоречивые тр exp=True act=True reason=CONTRADICTORY_INPUT conf=low risks=2(high=2) q=3 ac=0 79.2s",
+      "[17:23:09] #10 Чат-бот поддержки (противоречия в архи exp=True act=True reason=LOW_CONFIDENCE conf=low risks=2(high=1) q=3 ac=0 91.7s",
+      "[17:24:02] Q1 exp=False act=False src=1 conf=high 52.8s | Какой SLA установлен на ответы внутри команды?",
+      "[17:25:10] Q2 exp=False act=False src=1 conf=high 68.2s | Как клиенту оформить возврат?",
+      "[17:26:25] Q3 exp=False act=True src=0 conf=low 75.5s | Какие шаги нужно пройти перед деплоем в production…",
+      "[17:27:24] Q4 exp=False act=False src=1 conf=high 58.3s | Что такое ADR?",
+      "[17:28:53] Q5 exp=False act=True src=0 conf=low 89.0s | Как правильно написать шаблон ответа при эскалации…",
+      "[17:30:28] Q6 exp=False act=True src=0 conf=low 94.9s | Как проводится code review в команде?",
+      "[17:31:40] Q7 exp=False act=False src=2 conf=high 72.5s | Что такое RPO и чем отличается от RTO?",
+      "[17:32:13] Q8 exp=True act=True src=0 conf=low 32.7s | Какую библиотеку использовать для работы с PDF на …",
+      "[17:32:46] Q9 exp=True act=True src=0 conf=low 33.5s | Как настроить CI/CD пайплайн в GitLab?",
+      "[17:33:21] Q10 exp=True act=True src=0 conf=low 34.4s | Какова стоимость нашей подписки?",
+      "[17:33:41] audit: rows=24 actions={'direct_answer': 1, 'direct_review': 1, 'add_kb_document': 1, 'create_document': 1, 'ask_kb': 10, 'review': 10} reasons=['CONTRADICTORY_INPUT', 'INVALID_JSON', 'LOW_CONFIDENCE', 'MODEL_FLAGGED_NEEDS_REVIEW', 'NO_SOURCES_FOUND', 'TOO_VAGUE_INPUT'] providers=['ollama']"
+    ]
+  },
+  "run_updated_at": "2026-09-15T17:33:41",
+  "progress_tag": "done",
+  "audit": {
+    "stats": {
+      "total": 24,
+      "ok": 7,
+      "errors": 0,
+      "needs_review": 17,
+      "avg_duration_ms": 68657.0,
+      "error_rate_pct": 0.0,
+      "needs_review_pct": 70.8
+    },
+    "total_rows": 24,
+    "by_action": {
+      "direct_answer": 1,
+      "direct_review": 1,
+      "add_kb_document": 1,
+      "create_document": 1,
+      "ask_kb": 10,
+      "review": 10
+    },
+    "needs_review_reasons": [
+      "CONTRADICTORY_INPUT",
+      "INVALID_JSON",
+      "LOW_CONFIDENCE",
+      "MODEL_FLAGGED_NEEDS_REVIEW",
+      "NO_SOURCES_FOUND",
+      "TOO_VAGUE_INPUT"
+    ],
+    "providers": [
+      "ollama"
+    ]
+  }
+}

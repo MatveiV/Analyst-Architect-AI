@@ -101,9 +101,9 @@ architect  / architect123 → роль architect
 
 | Роль | Права |
 |------|-------|
-| `admin` | Все бизнес-функции + `/auth/register`, `/auth/users`, `/settings/*` |
-| `architect` | Все бизнес-функции + `/settings/*` (настройка AI-провайдеров) |
-| `analyst` | Документы, рецензии, база знаний, память, аудит (без настроек и пользователей) |
+| `admin` | Все бизнес-функции + `/auth/register`, `/auth/users` |
+| `architect` | Все бизнес-функции (включая настройки AI-провайдеров `/settings/*`) |
+| `analyst` | Документы, рецензии, база знаний, память, аудит + настройки LLM-провайдеров `/settings/*` (свой ключ и тест соединения) |
 
 ### Как проверяется роль на backend
 
@@ -116,10 +116,10 @@ app.include_router(knowledge_base.router,  dependencies=[Depends(require_analyst
 app.include_router(memory.router,          dependencies=[Depends(require_analyst)])
 app.include_router(diagrams.router,        dependencies=[Depends(require_analyst)])
 app.include_router(audit.router,           dependencies=[Depends(require_analyst)])
-app.include_router(settings_router.router, dependencies=[Depends(require_architect)])
+app.include_router(settings_router.router, dependencies=[Depends(require_analyst)])
 ```
 
-`require_analyst` пропускает любую из трёх ролей (admin/analyst/architect) — то есть все они могут работать с документами. `require_architect` пропускает только architect и admin.
+`require_analyst` пропускает любую из трёх ролей (admin/analyst/architect) — то есть **каждый** пользователь может настроить себе LLM-провайдера, сохранить API-ключ и протестировать соединение. `require_admin` — только admin (управление пользователями, seed-данные).
 
 Отдельные эндпоинты `/auth/register`, `/auth/users`, `/auth/users/{id}` защищены персонально через `Depends(require_admin)`.
 
@@ -193,7 +193,7 @@ done
 
 ## 5. Настройка AI-провайдеров
 
-Доступно **только ролям architect и admin** (analyst получит 403).
+Доступно **любому аутентифицированному пользователю** (admin / analyst / architect). Провайдера можно выбрать вручную или **определить автоматически** по API-ключу (`POST /settings/detect`), а ключ проверить тестом соединения **до сохранения** (`POST /settings/test` с телом формы).
 
 ```bash
 # Сохранить настройки Anthropic
@@ -402,7 +402,7 @@ sequenceDiagram
     actor U as Пользователь
     participant FE as Frontend
     participant API as FastAPI
-    participant Dep as require_analyst / require_architect
+    participant Dep as require_analyst + JWT
     participant DB as Database
 
     U->>FE: Вводит логин/пароль
@@ -416,11 +416,11 @@ sequenceDiagram
     API->>Dep: Проверка роли
     Dep->>API: jwt.decode(token) → user_id, role
     Dep->>DB: SELECT user WHERE id=? (проверка is_active)
-    alt role in [architect, admin]
+    alt любая роль (analyst | architect | admin)
         Dep-->>API: OK, пропускаем
         API->>DB: SELECT * FROM provider_settings
         API-->>FE: 200 + конфиг 5 провайдеров
-    else role == analyst
+    else no / invalid token
         Dep-->>API: 403 Forbidden
         API-->>FE: 403
     end

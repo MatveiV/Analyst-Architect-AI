@@ -1,0 +1,31 @@
+{
+  "run_started_at": "2026-09-15T18:04:50",
+  "specs": [
+    {
+      "n": 2,
+      "title": "Парсер цен конкурентов",
+      "review_id": "22ce33f3-eebc-457b-b15d-4599ed80a8a1",
+      "actual_needs_review": false,
+      "error": null,
+      "confidence": "medium",
+      "risks": 3,
+      "high_risks": 1,
+      "questions": 3,
+      "acceptance_criteria": 6,
+      "duration_s": 211.8
+    },
+    {
+      "n": 3,
+      "title": "Система учёта оплат и выгрузка отчётов",
+      "review_id": "4e451ae3-e97f-4acd-884b-fd2c33218fe0",
+      "actual_needs_review": false,
+      "error": null,
+      "confidence": "medium",
+      "risks": 3,
+      "high_risks": 0,
+      "questions": 5,
+      "acceptance_criteria": 10,
+      "duration_s": 183.6
+    }
+  ]
+}
