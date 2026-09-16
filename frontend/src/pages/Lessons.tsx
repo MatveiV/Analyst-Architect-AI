@@ -43,7 +43,7 @@ export default function LessonsPage() {
       const params: Record<string, string> = {};
       if (filterCat) params.category = filterCat;
       if (filterImpact) params.impact_type = filterImpact;
-      const res = await api.get('/api/lessons', { params });
+      const res = await api.get('/lessons', { params });
       setItems(res.data);
     } catch { toast(t('error_loading'), 'error'); }
     finally { setLoading(false); }
@@ -55,9 +55,9 @@ export default function LessonsPage() {
     try {
       const payload = { ...form, root_cause: form.root_cause || null, recommendation: form.recommendation || null };
       if (editId) {
-        await api.put(`/api/lessons/${editId}`, payload);
+        await api.put(`/lessons/${editId}`, payload);
       } else {
-        await api.post('/api/lessons', payload);
+        await api.post('/lessons', payload);
       }
       toast(t('less_saved'));
       setShowForm(false);
@@ -70,7 +70,7 @@ export default function LessonsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm(t('delete') + '?')) return;
     try {
-      await api.delete(`/api/lessons/${id}`);
+      await api.delete(`/lessons/${id}`);
       toast(t('less_deleted'));
       load();
     } catch { toast(t('error_loading'), 'error'); }
@@ -95,7 +95,7 @@ export default function LessonsPage() {
   const impactLabel = (i: string) => i === 'positive' ? t('less_impact_pos') : t('less_impact_neg');
 
   const exportCsv = async () => {
-    const res = await api.get('/api/lessons/export/csv', { responseType: 'blob' });
+    const res = await api.get('/lessons/export/csv', { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([res.data]));
     const a = document.createElement('a'); a.href = url; a.download = 'project_lessons.csv'; a.click();
     URL.revokeObjectURL(url);

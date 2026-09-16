@@ -49,9 +49,9 @@ export default function RiskCatalogPage() {
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
-      const res = await api.get('/api/risk-catalog', { params });
+      const res = await api.get('/risk-catalog', { params });
       setItems(res.data);
-      const statsRes = await api.get('/api/risk-catalog/stats');
+      const statsRes = await api.get('/risk-catalog/stats');
       setStats(statsRes.data);
     } catch { toast(t('error_loading'), 'error'); }
     finally { setLoading(false); }
@@ -63,9 +63,9 @@ export default function RiskCatalogPage() {
     try {
       const payload = { ...form, owner: form.owner || null, mitigation: form.mitigation || null };
       if (editId) {
-        await api.put(`/api/risk-catalog/${editId}`, payload);
+        await api.put(`/risk-catalog/${editId}`, payload);
       } else {
-        await api.post('/api/risk-catalog', payload);
+        await api.post('/risk-catalog', payload);
       }
       toast(t('risk_saved'));
       setShowForm(false);
@@ -78,7 +78,7 @@ export default function RiskCatalogPage() {
   const handleDelete = async (id: string) => {
     if (!confirm(t('delete') + '?')) return;
     try {
-      await api.delete(`/api/risk-catalog/${id}`);
+      await api.delete(`/risk-catalog/${id}`);
       toast(t('risk_deleted'));
       load();
     } catch { toast(t('error_loading'), 'error'); }
@@ -97,7 +97,7 @@ export default function RiskCatalogPage() {
   };
 
   const exportCsv = async () => {
-    const res = await api.get('/api/risk-catalog/export/csv', { responseType: 'blob' });
+    const res = await api.get('/risk-catalog/export/csv', { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([res.data]));
     const a = document.createElement('a'); a.href = url; a.download = 'risk_catalog.csv'; a.click();
     URL.revokeObjectURL(url);
